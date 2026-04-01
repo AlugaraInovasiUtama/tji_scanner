@@ -72,6 +72,16 @@ class DashboardScreen extends StatelessWidget {
               color: AppColors.success,
               onTap: () => Navigator.of(context).pushNamed('/pallet-info'),
             ),
+            const SizedBox(height: 14),
+
+            // Picking Info Card
+            _FeatureCard(
+              title: 'Info Picking / Receipt',
+              subtitle: 'Scan QR dokumen picking untuk melihat detail penerimaan',
+              icon: Icons.receipt_long_outlined,
+              color: AppColors.warning,
+              onTap: () => Navigator.of(context).pushNamed('/picking-info'),
+            ),
           ],
         ),
       ),

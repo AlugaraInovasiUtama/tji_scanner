@@ -175,6 +175,91 @@ class PalletInfo {
   }
 }
 
+class PickingLine {
+  final int productId;
+  final String? defaultCode;
+  final String productName;
+  final double qtyDemand;
+  final double qtyDone;
+  final String uom;
+
+  const PickingLine({
+    required this.productId,
+    this.defaultCode,
+    required this.productName,
+    required this.qtyDemand,
+    required this.qtyDone,
+    required this.uom,
+  });
+
+  factory PickingLine.fromJson(Map<String, dynamic> json) {
+    return PickingLine(
+      productId: json['product_id'] as int,
+      defaultCode: json['default_code'] as String?,
+      productName: json['product_name'] as String,
+      qtyDemand: (json['qty_demand'] as num).toDouble(),
+      qtyDone: (json['qty_done'] as num).toDouble(),
+      uom: json['uom'] as String,
+    );
+  }
+}
+
+class PickingInfo {
+  final int id;
+  final String name;
+  final String? origin;
+  final String pickingType;
+  final int? partnerId;
+  final String? partnerName;
+  final int locationId;
+  final String locationName;
+  final int locationDestId;
+  final String locationDestName;
+  final String state;
+  final String? scheduledDate;
+  final int totalLines;
+  final List<PickingLine> lines;
+
+  const PickingInfo({
+    required this.id,
+    required this.name,
+    this.origin,
+    required this.pickingType,
+    this.partnerId,
+    this.partnerName,
+    required this.locationId,
+    required this.locationName,
+    required this.locationDestId,
+    required this.locationDestName,
+    required this.state,
+    this.scheduledDate,
+    required this.totalLines,
+    required this.lines,
+  });
+
+  factory PickingInfo.fromJson(Map<String, dynamic> json) {
+    final rawLines = json['lines'] as List<dynamic>? ?? [];
+    return PickingInfo(
+      id: json['id'] as int,
+      name: json['name'] as String,
+      origin: json['origin'] as String?,
+      pickingType: json['picking_type'] as String,
+      partnerId: json['partner_id'] as int?,
+      partnerName: json['partner_name'] as String?,
+      locationId: json['location_id'] as int,
+      locationName: json['location_name'] as String,
+      locationDestId: json['location_dest_id'] as int,
+      locationDestName: json['location_dest_name'] as String,
+      state: json['state'] as String,
+      scheduledDate: json['scheduled_date'] as String?,
+      totalLines: json['total_lines'] as int,
+      lines: rawLines
+          .map((e) => PickingLine.fromJson(Map<String, dynamic>.from(e as Map)))
+          .toList(),
+    );
+  }
+}
+
 class ScanService {
   final Dio _dio;
 
@@ -256,6 +341,33 @@ class ScanService {
       }
 
       return PalletInfo.fromJson(result);
+    } on DioException catch (e) {
+      throw NetworkException(e.message ?? 'Gagal terhubung ke server');
+    }
+  }
+
+  Future<PickingInfo> getPickingInfo(String name) async {
+    try {
+      final response = await _dio.post(
+        ApiConstants.pickingInfoPath,
+        data: {
+          'jsonrpc': '2.0',
+          'method': 'call',
+          'params': {'name': name},
+        },
+      );
+
+      final data = response.data as Map<String, dynamic>;
+      final result = data['result'] as Map<String, dynamic>?;
+
+      if (result == null) {
+        throw const ServerException('Respon tidak valid dari server');
+      }
+      if (result.containsKey('error')) {
+        throw ServerException(result['error'] as String);
+      }
+
+      return PickingInfo.fromJson(result);
     } on DioException catch (e) {
       throw NetworkException(e.message ?? 'Gagal terhubung ke server');
     }

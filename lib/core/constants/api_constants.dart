@@ -11,6 +11,7 @@ class ApiConstants {
   static const String lotInfoPath = '/api/lot/info';
   static const String locationInfoPath = '/api/location/info';
   static const String palletInfoPath = '/api/pallet/info';
+  static const String pickingInfoPath = '/api/picking/info';
 
   static const Duration connectTimeout = Duration(seconds: 15);
   static const Duration receiveTimeout = Duration(seconds: 30);
