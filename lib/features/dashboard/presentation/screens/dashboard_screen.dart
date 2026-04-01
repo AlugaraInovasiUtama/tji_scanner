@@ -76,8 +76,8 @@ class DashboardScreen extends StatelessWidget {
 
             // Picking Info Card
             _FeatureCard(
-              title: 'Info Picking / Receipt',
-              subtitle: 'Scan QR dokumen picking untuk melihat detail penerimaan',
+              title: 'Info Picking',
+              subtitle: 'Scan QR dokumen picking untuk melihat detail picking',
               icon: Icons.receipt_long_outlined,
               color: AppColors.warning,
               onTap: () => Navigator.of(context).pushNamed('/picking-info'),

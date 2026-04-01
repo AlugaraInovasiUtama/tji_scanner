@@ -87,7 +87,7 @@ class _PickingInfoScreenState extends State<PickingInfoScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text('Info Picking / Receipt'),
+        title: const Text('Info Picking'),
         backgroundColor: AppColors.surface,
         foregroundColor: AppColors.textPrimary,
         actions: [
