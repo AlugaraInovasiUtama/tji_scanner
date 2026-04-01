@@ -4,6 +4,7 @@ import '../../features/auth/presentation/screens/login_screen.dart';
 import '../../features/dashboard/presentation/screens/dashboard_screen.dart';
 import '../../features/scanner/presentation/product_info_screen.dart';
 import '../../features/scanner/presentation/location_info_screen.dart';
+import '../../features/scanner/presentation/pallet_info_screen.dart';
 import '../../features/scanner/data/scan_service.dart';
 import '../../features/settings/presentation/screens/settings_screen.dart';
 import 'di/injection.dart';
@@ -25,6 +26,11 @@ class AppRouter {
       case '/location-info':
         return _buildRoute(
           LocationInfoScreen(scanService: sl<ScanService>()),
+          settings,
+        );
+      case '/pallet-info':
+        return _buildRoute(
+          PalletInfoScreen(scanService: sl<ScanService>()),
           settings,
         );
       case '/settings':

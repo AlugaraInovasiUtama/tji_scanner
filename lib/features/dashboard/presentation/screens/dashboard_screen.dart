@@ -62,6 +62,16 @@ class DashboardScreen extends StatelessWidget {
               color: AppColors.info,
               onTap: () => Navigator.of(context).pushNamed('/location-info'),
             ),
+            const SizedBox(height: 14),
+
+            // Pallet Info Card
+            _FeatureCard(
+              title: 'Info Pallet',
+              subtitle: 'Scan QR pallet untuk melihat paket & produk di dalamnya',
+              icon: Icons.view_in_ar_outlined,
+              color: AppColors.success,
+              onTap: () => Navigator.of(context).pushNamed('/pallet-info'),
+            ),
           ],
         ),
       ),
