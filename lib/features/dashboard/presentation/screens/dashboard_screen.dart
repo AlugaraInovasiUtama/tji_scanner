@@ -82,6 +82,16 @@ class DashboardScreen extends StatelessWidget {
               color: AppColors.warning,
               onTap: () => Navigator.of(context).pushNamed('/picking-info'),
             ),
+            const SizedBox(height: 14),
+
+            // Receipt + Internal Transfer Card
+            _FeatureCard(
+              title: 'Terima Barang',
+              subtitle: 'Scan receipt → validasi & pindah ke lokasi tujuan (opsional)',
+              icon: Icons.move_to_inbox_outlined,
+              color: const Color(0xFF7C4DFF),
+              onTap: () => Navigator.of(context).pushNamed('/receipt-transfer'),
+            ),
           ],
         ),
       ),

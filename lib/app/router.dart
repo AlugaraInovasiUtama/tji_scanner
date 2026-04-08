@@ -7,6 +7,7 @@ import '../../features/scanner/presentation/location_info_screen.dart';
 import '../../features/scanner/presentation/pallet_info_screen.dart';
 import '../../features/scanner/presentation/picking_info_screen.dart';
 import '../../features/scanner/data/scan_service.dart';
+import '../../features/receipt_transfer/presentation/screens/receipt_transfer_screen.dart';
 import '../../features/settings/presentation/screens/settings_screen.dart';
 import 'di/injection.dart';
 
@@ -37,6 +38,11 @@ class AppRouter {
       case '/picking-info':
         return _buildRoute(
           PickingInfoScreen(scanService: sl<ScanService>()),
+          settings,
+        );
+      case '/receipt-transfer':
+        return _buildRoute(
+          ReceiptTransferScreen(scanService: sl<ScanService>()),
           settings,
         );
       case '/settings':
