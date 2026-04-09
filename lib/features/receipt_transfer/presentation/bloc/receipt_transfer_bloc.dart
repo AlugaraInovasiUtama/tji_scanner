@@ -15,12 +15,16 @@ class ReceiptTransferBloc extends Bloc<ReceiptTransferEvent, ReceiptTransferStat
     on<ReceiptTransferLocationScanned>(_onLocationScanned);
     on<ReceiptTransferSkipLocation>(_onSkipLocation);
     on<ReceiptTransferConfirmed>(_onConfirmed);
+    on<ReceiptTransferMoveLocationSet>(_onMoveLocationSet);
+    on<ReceiptTransferMoveLocationCleared>(_onMoveLocationCleared);
   }
 
   // Expose helper methods to call ScanService from UI (search/generate lots)
   Future<List<LotChoice>> searchLots(int productId, String query) => _scanService.searchLots(productId: productId, query: query);
 
   Future<String> nextLotSequence() => _scanService.nextLotSequence();
+
+  Future<LocationInfo> getLocationInfo(String code) => _scanService.getLocationInfo(code);
 
   Future<List<CreatedLot>> generateLots({
     required int productId,
@@ -116,13 +120,18 @@ class ReceiptTransferBloc extends Bloc<ReceiptTransferEvent, ReceiptTransferStat
     emit(state.copyWith(moveLotMap: updated));
   }
 
-  /// User selesai mengisi lot — pindah ke scanLocation
+  /// User selesai mengisi lot — pindah ke scanLocation atau langsung confirming
   void _onProductsConfirmed(
     ReceiptTransferProductsConfirmed event,
     Emitter<ReceiptTransferState> emit,
   ) {
     if (state.step != ReceiptTransferStep.showProducts) return;
-    emit(state.copyWith(step: ReceiptTransferStep.scanLocation));
+    if (state.allMovesHaveLocation) {
+      // Semua produk sudah punya lokasi tujuan → skip scan location
+      emit(state.copyWith(step: ReceiptTransferStep.confirming, clearLocation: true));
+    } else {
+      emit(state.copyWith(step: ReceiptTransferStep.scanLocation));
+    }
   }
 
   /// Fetch location info untuk validasi lokasi tujuan ada di server
@@ -188,5 +197,32 @@ class ReceiptTransferBloc extends Bloc<ReceiptTransferEvent, ReceiptTransferStat
     } catch (e) {
       emit(state.copyWith(isLoading: false, errorMessage: e.toString()));
     }
+  }
+
+  void _onMoveLocationSet(
+    ReceiptTransferMoveLocationSet event,
+    Emitter<ReceiptTransferState> emit,
+  ) {
+    final updated = Map<int, MoveLotData>.from(state.moveLotMap);
+    final existing = updated[event.moveId];
+    if (existing != null) {
+      updated[event.moveId] = existing.copyWith(
+        destLocationCode: event.destLocationCode,
+        destLocationName: event.destLocationName,
+      );
+    }
+    emit(state.copyWith(moveLotMap: updated));
+  }
+
+  void _onMoveLocationCleared(
+    ReceiptTransferMoveLocationCleared event,
+    Emitter<ReceiptTransferState> emit,
+  ) {
+    final updated = Map<int, MoveLotData>.from(state.moveLotMap);
+    final existing = updated[event.moveId];
+    if (existing != null) {
+      updated[event.moveId] = existing.copyWith(clearDestLocation: true);
+    }
+    emit(state.copyWith(moveLotMap: updated));
   }
 }

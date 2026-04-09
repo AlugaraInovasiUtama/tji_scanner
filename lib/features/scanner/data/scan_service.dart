@@ -293,14 +293,30 @@ class ReceiptTransferLine {
   }
 }
 
+class InternalTransfer {
+  final int? id;
+  final String? name;
+  final bool done;
+  final String? destLocation;
+  final String? error;
+
+  const InternalTransfer({this.id, this.name, required this.done, this.destLocation, this.error});
+
+  factory InternalTransfer.fromJson(Map<String, dynamic> json) => InternalTransfer(
+    id: json['internal_picking_id'] as int?,
+    name: json['internal_picking_name'] as String?,
+    done: json['internal_done'] as bool? ?? false,
+    destLocation: json['dest_location'] as String?,
+    error: json['error'] as String?,
+  );
+}
+
 class ReceiptTransferResult {
   final String status;
   final bool receiptDone;
   final String receiptName;
   final List<ReceiptTransferLine> lines;
-  final int? internalPickingId;
-  final String? internalPickingName;
-  final bool internalDone;
+  final List<InternalTransfer> internalTransfers;
   final String message;
 
   const ReceiptTransferResult({
@@ -308,14 +324,40 @@ class ReceiptTransferResult {
     required this.receiptDone,
     required this.receiptName,
     required this.lines,
-    this.internalPickingId,
-    this.internalPickingName,
-    required this.internalDone,
+    required this.internalTransfers,
     required this.message,
   });
 
+  // Backward compat getters
+  int? get internalPickingId =>
+      internalTransfers.isNotEmpty ? internalTransfers.first.id : null;
+  String? get internalPickingName => internalTransfers.length == 1
+      ? internalTransfers.first.name
+      : internalTransfers.isNotEmpty
+          ? '${internalTransfers.length} Internal Transfer'
+          : null;
+  bool get internalDone =>
+      internalTransfers.isNotEmpty && internalTransfers.every((t) => t.done);
+
   factory ReceiptTransferResult.fromJson(Map<String, dynamic> json) {
     final rawLines = json['lines'] as List<dynamic>? ?? [];
+    final rawInternals = json['internal_pickings'] as List<dynamic>?;
+    final List<InternalTransfer> internalTransfers;
+    if (rawInternals != null) {
+      internalTransfers = rawInternals
+          .map((e) => InternalTransfer.fromJson(Map<String, dynamic>.from(e as Map)))
+          .toList();
+    } else if (json.containsKey('internal_picking_id') || json.containsKey('internal_picking_name')) {
+      internalTransfers = [
+        InternalTransfer(
+          id: json['internal_picking_id'] as int?,
+          name: json['internal_picking_name'] as String?,
+          done: json['internal_done'] as bool? ?? false,
+        ),
+      ];
+    } else {
+      internalTransfers = [];
+    }
     return ReceiptTransferResult(
       status: json['status'] as String? ?? 'ok',
       receiptDone: json['receipt_done'] as bool? ?? false,
@@ -323,9 +365,7 @@ class ReceiptTransferResult {
       lines: rawLines
           .map((e) => ReceiptTransferLine.fromJson(Map<String, dynamic>.from(e as Map)))
           .toList(),
-      internalPickingId: json['internal_picking_id'] as int?,
-      internalPickingName: json['internal_picking_name'] as String?,
-      internalDone: json['internal_done'] as bool? ?? false,
+      internalTransfers: internalTransfers,
       message: json['message'] as String? ?? '',
     );
   }
@@ -388,12 +428,16 @@ class MoveLotData {
   final String tracking; // 'none', 'lot', 'serial'
   final List<LotEntry> lots;
   final double qty;
+  final String? destLocationCode;
+  final String? destLocationName;
 
   const MoveLotData({
     required this.moveId,
     required this.tracking,
     this.lots = const [],
     required this.qty,
+    this.destLocationCode,
+    this.destLocationName,
   });
 
   bool get isComplete {
@@ -405,17 +449,23 @@ class MoveLotData {
     'move_id': moveId,
     if (lots.isNotEmpty) 'lots': lots.map((l) => l.toJson()).toList(),
     'qty': qty,
+    if (destLocationCode != null) 'dest_location_code': destLocationCode,
   };
 
   MoveLotData copyWith({
     List<LotEntry>? lots,
     double? qty,
+    String? destLocationCode,
+    String? destLocationName,
+    bool clearDestLocation = false,
   }) =>
       MoveLotData(
         moveId: moveId,
         tracking: tracking,
         lots: lots ?? this.lots,
         qty: qty ?? this.qty,
+        destLocationCode: clearDestLocation ? null : (destLocationCode ?? this.destLocationCode),
+        destLocationName: clearDestLocation ? null : (destLocationName ?? this.destLocationName),
       );
 }
 

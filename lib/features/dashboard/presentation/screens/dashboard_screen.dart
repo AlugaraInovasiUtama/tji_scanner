@@ -5,6 +5,7 @@ import '../../../auth/presentation/bloc/auth_event.dart';
 import '../../../auth/presentation/bloc/auth_state.dart';
 import '../../../../shared/theme/app_colors.dart';
 import '../../../../shared/theme/app_text_styles.dart';
+import '../../../../shared/theme/theme_cubit.dart';
 
 class DashboardScreen extends StatelessWidget {
   const DashboardScreen({super.key});
@@ -15,12 +16,20 @@ class DashboardScreen extends StatelessWidget {
     final userName =
         authState is AuthAuthenticated ? authState.user.name : 'Operator';
 
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Scaffold(
-      backgroundColor: AppColors.background,
       appBar: AppBar(
+        leading: BlocBuilder<ThemeCubit, ThemeMode>(
+          builder: (ctx, mode) => IconButton(
+            icon: Icon(
+              mode == ThemeMode.dark ? Icons.light_mode_outlined : Icons.dark_mode_outlined,
+            ),
+            tooltip: mode == ThemeMode.dark ? 'Mode Terang' : 'Mode Gelap',
+            onPressed: () => ctx.read<ThemeCubit>().toggleTheme(),
+          ),
+        ),
         title: const Text('TJI Scanner'),
-        backgroundColor: AppColors.surface,
-        foregroundColor: AppColors.textPrimary,
         actions: [
           IconButton(
             icon: const Icon(Icons.settings_outlined),
@@ -38,7 +47,7 @@ class DashboardScreen extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Welcome card
-            _buildWelcomeCard(userName),
+            _buildWelcomeCard(userName, isDark),
             const SizedBox(height: 32),
 
             Text('Pilih Fitur', style: AppTextStyles.headlineMedium),
@@ -98,12 +107,15 @@ class DashboardScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildWelcomeCard(String userName) {
+  Widget _buildWelcomeCard(String userName, bool isDark) {
+    final gradientColors = isDark
+        ? const [Color(0xFF0F3460), Color(0xFF16213E)]
+        : const [Color(0xFFE3F2FD), Color(0xFFBBDEFB)];
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFF0F3460), Color(0xFF16213E)],
+        gradient: LinearGradient(
+          colors: gradientColors,
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
@@ -126,8 +138,12 @@ class DashboardScreen extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Selamat Datang,', style: AppTextStyles.bodyMedium),
-                Text(userName, style: AppTextStyles.titleLarge),
+                Text('Selamat Datang,', style: AppTextStyles.bodyMedium.copyWith(
+                  color: isDark ? null : const Color(0xFF455A64),
+                )),
+                Text(userName, style: AppTextStyles.titleLarge.copyWith(
+                  color: isDark ? null : const Color(0xFF1A1A2E),
+                )),
               ],
             ),
           ),
@@ -165,13 +181,8 @@ class DashboardScreen extends StatelessWidget {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.surface,
-        title: const Text('Logout',
-            style: TextStyle(color: AppColors.textPrimary)),
-        content: const Text(
-          'Apakah Anda yakin ingin logout?',
-          style: TextStyle(color: AppColors.textSecondary),
-        ),
+        title: const Text('Logout'),
+        content: const Text('Apakah Anda yakin ingin logout?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
@@ -215,7 +226,7 @@ class _FeatureCard extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(18),
         decoration: BoxDecoration(
-          color: AppColors.surface,
+          color: Theme.of(context).colorScheme.surface,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(color: color.withOpacity(0.3)),
         ),

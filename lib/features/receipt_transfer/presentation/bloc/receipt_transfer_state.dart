@@ -92,7 +92,41 @@ class ReceiptTransferState extends Equatable {
     }
   }
 
-  bool get hasTargetLocation => locationCode != null;
+  bool get hasTargetLocation =>
+      locationCode != null ||
+      moveLotMap.values.any((m) => m.destLocationCode != null);
+
+  /// True kalau semua produk memiliki lokasi tujuan per-move
+  bool get allMovesHaveLocation {
+    final info = pickingInfo;
+    if (info == null || info.lines.isEmpty) return false;
+    for (final line in info.lines) {
+      final lotData = moveLotMap[line.moveId];
+      if (lotData?.destLocationCode == null) return false;
+    }
+    return true;
+  }
+
+  /// True kalau sebagian (bukan semua, bukan nol) produk punya lokasi tujuan
+  bool get someButNotAllMovesHaveLocation {
+    final info = pickingInfo;
+    if (info == null || info.lines.isEmpty) return false;
+    int withLoc = 0;
+    for (final line in info.lines) {
+      final lotData = moveLotMap[line.moveId];
+      if (lotData?.destLocationCode != null) withLoc++;
+    }
+    return withLoc > 0 && withLoc < info.lines.length;
+  }
+
+  /// Jumlah internal transfer unik berdasarkan lokasi tujuan
+  int get uniqueDestLocationCount {
+    return moveLotMap.values
+        .map((m) => m.destLocationCode)
+        .whereType<String>()
+        .toSet()
+        .length;
+  }
 
   /// True kalau semua line tracked sudah terisi lot
   bool get allLotsComplete {

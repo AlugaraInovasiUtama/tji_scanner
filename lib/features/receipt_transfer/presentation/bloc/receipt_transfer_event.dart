@@ -40,3 +40,21 @@ class ReceiptTransferSkipLocation extends ReceiptTransferEvent {}
 
 /// Konfirmasi eksekusi: validasi receipt (+ internal transfer bila ada target)
 class ReceiptTransferConfirmed extends ReceiptTransferEvent {}
+
+/// Set lokasi tujuan per-produk (move)
+class ReceiptTransferMoveLocationSet extends ReceiptTransferEvent {
+  final int moveId;
+  final String destLocationCode;
+  final String destLocationName;
+  ReceiptTransferMoveLocationSet(this.moveId, this.destLocationCode, this.destLocationName);
+  @override
+  List<Object?> get props => [moveId, destLocationCode];
+}
+
+/// Hapus lokasi tujuan per-produk (move)
+class ReceiptTransferMoveLocationCleared extends ReceiptTransferEvent {
+  final int moveId;
+  ReceiptTransferMoveLocationCleared(this.moveId);
+  @override
+  List<Object?> get props => [moveId];
+}

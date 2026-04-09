@@ -182,7 +182,7 @@ class _ShowProductsView extends StatelessWidget {
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
           child: Text(
-            'Isi lot/serial untuk produk yang membutuhkan.',
+            'Isi lot/serial untuk produk yang membutuhkan. Tap ikon lokasi untuk set lokasi tujuan per produk.',
             style: AppTextStyles.bodySmall.copyWith(color: AppColors.textSecondary),
           ),
         ),
@@ -227,20 +227,67 @@ class _ShowProductsView extends StatelessWidget {
                         }
                       }
                     : null,
+                onLocationTap: () async {
+                  final bloc = context.read<ReceiptTransferBloc>();
+                  final result = await showModalBottomSheet<_LocationResult>(
+                    context: context,
+                    isScrollControlled: true,
+                    backgroundColor: AppColors.surface,
+                    elevation: 4,
+                    builder: (_) => _LocationScanSheet(
+                      bloc: bloc,
+                      moveId: line.moveId,
+                      currentLocationName: lotData?.destLocationName,
+                    ),
+                  );
+                  if (result != null && context.mounted) {
+                    if (result.clear) {
+                      context.read<ReceiptTransferBloc>().add(
+                            ReceiptTransferMoveLocationCleared(line.moveId),
+                          );
+                    } else {
+                      context.read<ReceiptTransferBloc>().add(
+                            ReceiptTransferMoveLocationSet(
+                              line.moveId,
+                              result.code,
+                              result.name,
+                            ),
+                          );
+                    }
+                  }
+                },
               );
             },
           ),
         ),
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
-          child: AppButton(
-            label: 'Lanjut ke Lokasi Tujuan',
-            icon: Icons.arrow_forward,
-            onPressed: trackedIncomplete
-                ? null
-                : () => context
-                    .read<ReceiptTransferBloc>()
-                    .add(ReceiptTransferProductsConfirmed()),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (state.someButNotAllMovesHaveLocation)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 6),
+                  child: Text(
+                    'Set lokasi untuk semua produk, atau kosongkan semua lokasi untuk lanjut.',
+                    textAlign: TextAlign.center,
+                    style: AppTextStyles.bodySmall.copyWith(color: AppColors.warning),
+                  ),
+                ),
+              AppButton(
+                label: state.allMovesHaveLocation
+                    ? 'Langsung ke Konfirmasi'
+                    : 'Lanjut ke Lokasi Tujuan',
+                icon: state.allMovesHaveLocation
+                    ? Icons.check_circle_outline
+                    : Icons.arrow_forward,
+                onPressed: (trackedIncomplete || state.someButNotAllMovesHaveLocation)
+                    ? null
+                    : () => context
+                        .read<ReceiptTransferBloc>()
+                        .add(ReceiptTransferProductsConfirmed()),
+              ),
+            ],
           ),
         ),
       ],
@@ -255,12 +302,14 @@ class _ProductLineCard extends StatelessWidget {
   final MoveLotData? lotData;
   final bool isDone;
   final VoidCallback? onEdit;
+  final VoidCallback? onLocationTap;
 
   const _ProductLineCard({
     required this.line,
     required this.lotData,
     required this.isDone,
     this.onEdit,
+    this.onLocationTap,
   });
 
   @override
@@ -314,6 +363,39 @@ class _ProductLineCard extends StatelessWidget {
               Text('Belum ada $trackingLabel',
                   style:
                       AppTextStyles.bodySmall.copyWith(color: AppColors.warning)),
+            // Per-product destination location
+            GestureDetector(
+              onTap: onLocationTap,
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.location_on_outlined,
+                    size: 13,
+                    color: lotData?.destLocationName != null
+                        ? AppColors.info
+                        : AppColors.textHint,
+                  ),
+                  const SizedBox(width: 3),
+                  Expanded(
+                    child: Text(
+                      lotData?.destLocationName ?? 'Tap untuk set lokasi tujuan',
+                      style: AppTextStyles.bodySmall.copyWith(
+                        color: lotData?.destLocationName != null
+                            ? AppColors.info
+                            : AppColors.textHint,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  if (lotData?.destLocationName != null)
+                    GestureDetector(
+                      onTap: onLocationTap,
+                      child: const Icon(Icons.close, size: 13, color: AppColors.textHint),
+                    ),
+                ],
+              ),
+            ),
           ],
         ),
         trailing: onEdit != null
@@ -374,6 +456,8 @@ class _LotEntrySheetState extends State<_LotEntrySheet> {
   final TextEditingController _qtyPerLotCtrl = TextEditingController(text: '1');
   final TextEditingController _totalQtyCtrl = TextEditingController();
   bool _generating = false;
+  bool _fetchingSequence = false;
+  String? _generateError;
 
   @override
   void initState() {
@@ -476,19 +560,33 @@ class _LotEntrySheetState extends State<_LotEntrySheet> {
   // ── generate helpers ───────────────────────────────────────────────────────
 
   Future<void> _fetchNextSequence() async {
+    setState(() => _fetchingSequence = true);
     try {
       final next = await widget.bloc.nextLotSequence();
       if (mounted && next.isNotEmpty) {
-        setState(() => _firstCtrl.text = next);
+        setState(() {
+          _firstCtrl.text = next;
+          _fetchingSequence = false;
+        });
+      } else if (mounted) {
+        setState(() => _fetchingSequence = false);
       }
-    } catch (_) {
-      // silently ignore; user can type manually
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _fetchingSequence = false;
+          _generateError = 'Gagal ambil sequence: ${e.toString().replaceFirst('Exception: ', '')}';
+        });
+      }
     }
   }
 
   Future<void> _doGenerate() async {
     final first = _firstCtrl.text.trim();
-    if (first.isEmpty) return;
+    if (first.isEmpty) {
+      setState(() => _generateError = 'Masukkan nomor awal lot/serial terlebih dahulu');
+      return;
+    }
 
     final int count;
     final double qtyPerLot;
@@ -524,8 +622,13 @@ class _LotEntrySheetState extends State<_LotEntrySheet> {
         lots: lots,
         qty: lots.fold(0.0, (s, l) => s + l.qty),
       ));
-    } catch (_) {
-      if (mounted) setState(() => _generating = false);
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _generating = false;
+          _generateError = e.toString().replaceFirst('Exception: ', '');
+        });
+      }
     }
   }
 
@@ -890,8 +993,29 @@ class _LotEntrySheetState extends State<_LotEntrySheet> {
                                     _isSerial ? 'e.g. SN0001' : 'e.g. LOT-001',
                                 border: const OutlineInputBorder(),
                                 isDense: true,
+                                suffixIcon: _fetchingSequence
+                                    ? const Padding(
+                                        padding: EdgeInsets.all(10),
+                                        child: SizedBox(
+                                          width: 16,
+                                          height: 16,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                          ),
+                                        ),
+                                      )
+                                    : null,
                               ),
+                              onChanged: (_) => setState(() => _generateError = null),
                             ),
+                            if (_generateError != null) ...[  
+                              const SizedBox(height: 6),
+                              Text(
+                                _generateError!,
+                                style: AppTextStyles.bodySmall
+                                    .copyWith(color: AppColors.error),
+                              ),
+                            ],
                             const SizedBox(height: 10),
 
                             // Serial mode: only Count
@@ -962,7 +1086,9 @@ class _LotEntrySheetState extends State<_LotEntrySheet> {
                                   ? 'Generating...'
                                   : 'Generate & Simpan',
                               icon: Icons.auto_awesome,
-                              onPressed: _generating ? null : _doGenerate,
+                              onPressed: (_generating || _fetchingSequence)
+                                  ? null
+                                  : _doGenerate,
                             ),
                           ],
                         ),
@@ -970,6 +1096,140 @@ class _LotEntrySheetState extends State<_LotEntrySheet> {
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Helper: location scan result ────────────────────────────────────────────
+
+class _LocationResult {
+  final String code;
+  final String name;
+  final bool clear;
+  const _LocationResult({required this.code, required this.name, this.clear = false});
+  static const _LocationResult cleared = _LocationResult(code: '', name: '', clear: true);
+}
+
+// ─── Bottom sheet: scan lokasi per produk ────────────────────────────────────
+
+class _LocationScanSheet extends StatefulWidget {
+  final ReceiptTransferBloc bloc;
+  final int moveId;
+  final String? currentLocationName;
+
+  const _LocationScanSheet({
+    required this.bloc,
+    required this.moveId,
+    this.currentLocationName,
+  });
+
+  @override
+  State<_LocationScanSheet> createState() => _LocationScanSheetState();
+}
+
+class _LocationScanSheetState extends State<_LocationScanSheet> {
+  bool _scanning = false;
+  String? _error;
+
+  Future<void> _onScanned(String code) async {
+    setState(() {
+      _scanning = true;
+      _error = null;
+    });
+    try {
+      final info = await widget.bloc.getLocationInfo(code);
+      if (mounted) {
+        Navigator.of(context).pop(
+          _LocationResult(code: info.location, name: info.location),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _scanning = false;
+          _error = e.toString().replaceFirst('Exception: ', '');
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      top: false,
+      child: SizedBox(
+        height: MediaQuery.of(context).size.height * 0.6,
+        child: Column(
+          children: [
+            // Drag handle
+            Container(
+              margin: const EdgeInsets.only(top: 12, bottom: 8),
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey.shade300,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+              child: Row(
+                children: [
+                  const Icon(Icons.location_on_outlined, color: AppColors.info),
+                  const SizedBox(width: 8),
+                  Text('Set Lokasi Tujuan', style: AppTextStyles.titleMedium),
+                ],
+              ),
+            ),
+            if (widget.currentLocationName != null)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Saat ini: ${widget.currentLocationName}',
+                        style: AppTextStyles.bodySmall.copyWith(color: AppColors.info),
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: () =>
+                          Navigator.of(context).pop(_LocationResult.cleared),
+                      child: Text(
+                        'Hapus',
+                        style: AppTextStyles.bodySmall.copyWith(color: AppColors.error),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            if (_error != null)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+                child: Text(
+                  _error!,
+                  style: AppTextStyles.bodySmall.copyWith(color: AppColors.error),
+                ),
+              ),
+            Expanded(
+              child: _scanning
+                  ? const Center(child: CircularProgressIndicator())
+                  : ClipRRect(
+                      borderRadius: const BorderRadius.only(
+                        bottomLeft: Radius.circular(24),
+                        bottomRight: Radius.circular(24),
+                      ),
+                      child: QrScannerWidget(
+                        expectedType: 'any',
+                        instruction: 'Scan QR lokasi tujuan produk ini',
+                        onScanSuccess: _onScanned,
+                      ),
+                    ),
+            ),
+            const SizedBox(height: 12),
+          ],
         ),
       ),
     );
@@ -1106,6 +1366,18 @@ class _SummaryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final lines = state.pickingInfo?.lines ?? [];
+    final hasPerProductLoc = state.allMovesHaveLocation;
+    final hasGlobalLoc = state.locationCode != null;
+    final uniqueInternal = state.uniqueDestLocationCount;
+    // Total: 1 receipt + internal transfer per lokasi unik (atau 1 kalau global)
+    final totalTx = 1 +
+        (hasPerProductLoc
+            ? uniqueInternal
+            : hasGlobalLoc
+                ? 1
+                : 0);
+
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -1125,7 +1397,27 @@ class _SummaryCard extends StatelessWidget {
             color: AppColors.primary,
           ),
           const SizedBox(height: 12),
-          if (state.hasTargetLocation) ...[
+          if (hasPerProductLoc) ...[  
+            // Per-product destination rows
+            for (final line in lines) ...[  
+              _InfoRow(
+                icon: Icons.inventory_2_outlined,
+                label: line.productName,
+                value: state.moveLotMap[line.moveId]?.destLocationName ?? '-',
+                color: AppColors.info,
+              ),
+              const SizedBox(height: 8),
+            ],
+            const SizedBox(height: 8),
+            _TransactionInfoBox(
+              totalTx: totalTx,
+              perProductLocs: state.moveLotMap.values
+                  .map((m) => m.destLocationName)
+                  .whereType<String>()
+                  .toList(),
+              uniqueInternal: uniqueInternal,
+            ),
+          ] else if (hasGlobalLoc) ...[  
             _InfoRow(
               icon: Icons.location_on_outlined,
               label: 'Lokasi Tujuan',
@@ -1133,30 +1425,12 @@ class _SummaryCard extends StatelessWidget {
               color: AppColors.info,
             ),
             const SizedBox(height: 16),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: AppColors.info.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.info_outline,
-                      color: AppColors.info, size: 18),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'Akan dibuat 2 transaksi:\n'
-                      '1. Validasi receipt dari vendor\n'
-                      '2. Internal transfer ke lokasi tujuan',
-                      style: AppTextStyles.bodySmall
-                          .copyWith(color: AppColors.info),
-                    ),
-                  ),
-                ],
-              ),
+            _TransactionInfoBox(
+              totalTx: totalTx,
+              perProductLocs: [],
+              uniqueInternal: 1,
             ),
-          ] else ...[
+          ] else ...[  
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
@@ -1165,15 +1439,12 @@ class _SummaryCard extends StatelessWidget {
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.info_outline,
-                      color: AppColors.warning, size: 18),
+                  const Icon(Icons.info_outline, color: AppColors.warning, size: 18),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      'Hanya validasi receipt\n'
-                      '(tanpa pemindahan ke lokasi tertentu)',
-                      style: AppTextStyles.bodySmall
-                          .copyWith(color: AppColors.warning),
+                      'Hanya validasi receipt\n(tanpa pemindahan ke lokasi tertentu)',
+                      style: AppTextStyles.bodySmall.copyWith(color: AppColors.warning),
                     ),
                   ),
                 ],
@@ -1185,6 +1456,54 @@ class _SummaryCard extends StatelessWidget {
     );
   }
 }
+
+class _TransactionInfoBox extends StatelessWidget {
+  final int totalTx;
+  final List<String> perProductLocs;
+  final int uniqueInternal;
+
+  const _TransactionInfoBox({
+    required this.totalTx,
+    required this.perProductLocs,
+    required this.uniqueInternal,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final uniqueLocs = perProductLocs.toSet().toList();
+    final lines = <String>['Akan dibuat $totalTx transaksi:'];
+    lines.add('1. Validasi receipt dari vendor');
+    if (uniqueInternal == 1) {
+      lines.add('2. Internal transfer ke lokasi tujuan');
+    } else {
+      for (int i = 0; i < uniqueLocs.length; i++) {
+        lines.add('${i + 2}. Internal transfer → ${uniqueLocs[i]}');
+      }
+    }
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.info.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.info_outline, color: AppColors.info, size: 18),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              lines.join('\n'),
+              style: AppTextStyles.bodySmall.copyWith(color: AppColors.info),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── Info row widget ─────────────────────────────────────────────────────────
 
 class _InfoRow extends StatelessWidget {
   final IconData icon;
@@ -1321,14 +1640,20 @@ class _ResultDetailCard extends StatelessWidget {
             icon: Icons.receipt_long_outlined,
             status: result.receiptDone,
           ),
-          if (result.internalPickingName != null) ...[
-            const SizedBox(height: 8),
-            _ResultRow(
-              label: 'Internal Transfer',
-              value: result.internalPickingName!,
-              icon: Icons.swap_horiz_rounded,
-              status: result.internalDone,
-            ),
+          if (result.internalTransfers.isNotEmpty) ...[
+            for (int i = 0; i < result.internalTransfers.length; i++) ...[
+              const SizedBox(height: 8),
+              _ResultRow(
+                label: result.internalTransfers.length == 1
+                    ? 'Internal Transfer'
+                    : 'Transfer ${i + 1}'
+                        '${result.internalTransfers[i].destLocation != null ? ' → ${result.internalTransfers[i].destLocation}' : ''}',
+                value: result.internalTransfers[i].name ??
+                    (result.internalTransfers[i].error ?? 'Gagal dibuat'),
+                icon: Icons.swap_horiz_rounded,
+                status: result.internalTransfers[i].done,
+              ),
+            ],
           ],
         ],
       ),
