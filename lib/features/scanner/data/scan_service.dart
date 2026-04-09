@@ -592,6 +592,26 @@ class ScanService {
     }
   }
 
+  Future<String> nextLotSequence() async {
+    try {
+      final response = await _dio.post(
+        ApiConstants.lotNextSequencePath,
+        data: {
+          'jsonrpc': '2.0',
+          'method': 'call',
+          'params': {},
+        },
+      );
+      final data = response.data as Map<String, dynamic>;
+      final result = data['result'] as Map<String, dynamic>?;
+      if (result == null) throw const ServerException('Respon tidak valid dari server');
+      if (result.containsKey('error')) throw ServerException(result['error'] as String);
+      return result['next_lot'] as String? ?? '';
+    } on DioException catch (e) {
+      throw NetworkException(e.message ?? 'Gagal terhubung ke server');
+    }
+  }
+
   Future<List<CreatedLot>> generateLots({
     required int productId,
     required String first,

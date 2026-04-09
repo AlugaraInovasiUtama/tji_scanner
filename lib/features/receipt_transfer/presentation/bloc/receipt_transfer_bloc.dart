@@ -20,6 +20,8 @@ class ReceiptTransferBloc extends Bloc<ReceiptTransferEvent, ReceiptTransferStat
   // Expose helper methods to call ScanService from UI (search/generate lots)
   Future<List<LotChoice>> searchLots(int productId, String query) => _scanService.searchLots(productId: productId, query: query);
 
+  Future<String> nextLotSequence() => _scanService.nextLotSequence();
+
   Future<List<CreatedLot>> generateLots({
     required int productId,
     required String first,

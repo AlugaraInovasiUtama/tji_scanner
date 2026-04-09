@@ -11,6 +11,7 @@ class ApiConstants {
   static const String lotInfoPath = '/api/lot/info';
   static const String lotSearchPath = '/api/lot/search';
   static const String lotGeneratePath = '/api/lot/generate';
+  static const String lotNextSequencePath = '/api/lot/next_sequence';
   static const String locationInfoPath = '/api/location/info';
   static const String palletInfoPath = '/api/pallet/info';
   static const String pickingInfoPath = '/api/picking/info';

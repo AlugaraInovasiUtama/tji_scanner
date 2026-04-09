@@ -475,6 +475,17 @@ class _LotEntrySheetState extends State<_LotEntrySheet> {
 
   // ── generate helpers ───────────────────────────────────────────────────────
 
+  Future<void> _fetchNextSequence() async {
+    try {
+      final next = await widget.bloc.nextLotSequence();
+      if (mounted && next.isNotEmpty) {
+        setState(() => _firstCtrl.text = next);
+      }
+    } catch (_) {
+      // silently ignore; user can type manually
+    }
+  }
+
   Future<void> _doGenerate() async {
     final first = _firstCtrl.text.trim();
     if (first.isEmpty) return;
@@ -617,7 +628,12 @@ class _LotEntrySheetState extends State<_LotEntrySheet> {
                     ButtonSegment(value: 'generate', label: Text('Generate')),
                   ],
                   selected: {_mode},
-                  onSelectionChanged: (s) => setState(() => _mode = s.first),
+                  onSelectionChanged: (s) {
+                    setState(() => _mode = s.first);
+                    if (s.first == 'generate' && _firstCtrl.text.isEmpty) {
+                      _fetchNextSequence();
+                    }
+                  },
                 ),
               ),
               const Divider(height: 24),
