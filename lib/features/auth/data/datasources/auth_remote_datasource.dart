@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import '../../../../core/constants/api_constants.dart';
 import '../../../../core/errors/exceptions.dart';
 import '../models/user_model.dart';
 
@@ -10,6 +11,8 @@ abstract class AuthRemoteDataSource {
   });
 
   Future<void> logout({required String baseUrl});
+
+  Future<String> getUserRole({required String baseUrl});
 }
 
 class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
@@ -63,6 +66,21 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
       );
     } catch (_) {
       // ignore logout errors
+    }
+  }
+
+  @override
+  Future<String> getUserRole({required String baseUrl}) async {
+    try {
+      final response = await _dio.post(
+        '$baseUrl${ApiConstants.userRolePath}',
+        data: {'jsonrpc': '2.0', 'method': 'call', 'params': {}},
+      );
+      final data = response.data as Map<String, dynamic>;
+      final result = data['result'] as Map<String, dynamic>?;
+      return result?['role'] as String? ?? '';
+    } catch (_) {
+      return ''; // non-critical: default to no role
     }
   }
 }

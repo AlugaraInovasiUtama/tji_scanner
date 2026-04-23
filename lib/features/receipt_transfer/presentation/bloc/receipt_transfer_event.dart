@@ -8,6 +8,9 @@ abstract class ReceiptTransferEvent extends Equatable {
 
 class ReceiptTransferReset extends ReceiptTransferEvent {}
 
+/// Navigate back to the previous step
+class ReceiptTransferGoBack extends ReceiptTransferEvent {}
+
 /// Scan nomor picking (contoh: WH/IN/00001 atau barcode picking)
 class ReceiptTransferPickingScanned extends ReceiptTransferEvent {
   final String pickingName;

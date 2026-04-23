@@ -95,11 +95,21 @@ class DashboardScreen extends StatelessWidget {
 
             // Receipt + Internal Transfer Card
             _FeatureCard(
-              title: 'Terima Barang',
-              subtitle: 'Scan receipt → validasi & pindah ke lokasi tujuan (opsional)',
+              title: 'Validasi Picking',
+              subtitle: 'Scan picking → validasi & pindah ke lokasi tujuan (opsional)',
               icon: Icons.move_to_inbox_outlined,
               color: const Color(0xFF7C4DFF),
-              onTap: () => Navigator.of(context).pushNamed('/receipt-transfer'),
+              onTap: () => Navigator.of(context).pushNamed('/validasi-picking'),
+            ),
+            const SizedBox(height: 14),
+
+            // Create Transfer Card
+            _FeatureCard(
+              title: 'Buat Transfer',
+              subtitle: 'Buat transfer baru dengan pilih kontak, tipe operasi & lokasi',
+              icon: Icons.swap_horiz_outlined,
+              color: const Color(0xFF00BCD4),
+              onTap: () => Navigator.of(context).pushNamed('/create-transfer'),
             ),
           ],
         ),

@@ -1,23 +1,23 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../scanner/data/scan_service.dart';
 import '../../../../core/errors/exceptions.dart';
-import 'receipt_transfer_event.dart';
-import 'receipt_transfer_state.dart';
+import 'validasi_picking_event.dart';
+import 'validasi_picking_state.dart';
 
-class ReceiptTransferBloc extends Bloc<ReceiptTransferEvent, ReceiptTransferState> {
+class ValidasiPickingBloc extends Bloc<ValidasiPickingEvent, ValidasiPickingState> {
   final ScanService _scanService;
 
-  ReceiptTransferBloc(this._scanService) : super(const ReceiptTransferState()) {
-    on<ReceiptTransferReset>(_onReset);
-    on<ReceiptTransferGoBack>(_onGoBack);
-    on<ReceiptTransferPickingScanned>(_onPickingScanned);
-    on<ReceiptTransferLotUpdated>(_onLotUpdated);
-    on<ReceiptTransferProductsConfirmed>(_onProductsConfirmed);
-    on<ReceiptTransferLocationScanned>(_onLocationScanned);
-    on<ReceiptTransferSkipLocation>(_onSkipLocation);
-    on<ReceiptTransferConfirmed>(_onConfirmed);
-    on<ReceiptTransferMoveLocationSet>(_onMoveLocationSet);
-    on<ReceiptTransferMoveLocationCleared>(_onMoveLocationCleared);
+  ValidasiPickingBloc(this._scanService) : super(const ValidasiPickingState()) {
+    on<ValidasiPickingReset>(_onReset);
+    on<ValidasiPickingGoBack>(_onGoBack);
+    on<ValidasiPickingPickingScanned>(_onPickingScanned);
+    on<ValidasiPickingLotUpdated>(_onLotUpdated);
+    on<ValidasiPickingProductsConfirmed>(_onProductsConfirmed);
+    on<ValidasiPickingLocationScanned>(_onLocationScanned);
+    on<ValidasiPickingSkipLocation>(_onSkipLocation);
+    on<ValidasiPickingConfirmed>(_onConfirmed);
+    on<ValidasiPickingMoveLocationSet>(_onMoveLocationSet);
+    on<ValidasiPickingMoveLocationCleared>(_onMoveLocationCleared);
   }
 
   // Expose helper methods to call ScanService from UI (search/generate lots)
@@ -44,15 +44,15 @@ class ReceiptTransferBloc extends Bloc<ReceiptTransferEvent, ReceiptTransferStat
         totalQty: totalQty,
       );
 
-  void _onReset(ReceiptTransferReset event, Emitter<ReceiptTransferState> emit) {
-    emit(const ReceiptTransferState());
+  void _onReset(ValidasiPickingReset event, Emitter<ValidasiPickingState> emit) {
+    emit(const ValidasiPickingState());
   }
 
-  void _onGoBack(ReceiptTransferGoBack event, Emitter<ReceiptTransferState> emit) {
+  void _onGoBack(ValidasiPickingGoBack event, Emitter<ValidasiPickingState> emit) {
     switch (state.step) {
-      case ReceiptTransferStep.showProducts:
+      case ValidasiPickingStep.showProducts:
         emit(state.copyWith(
-          step: ReceiptTransferStep.scanPicking,
+          step: ValidasiPickingStep.scanPicking,
           pickingName: null,
           pickingId: null,
           pickingInfo: null,
@@ -60,24 +60,24 @@ class ReceiptTransferBloc extends Bloc<ReceiptTransferEvent, ReceiptTransferStat
           clearError: true,
         ));
         break;
-      case ReceiptTransferStep.scanLocation:
+      case ValidasiPickingStep.scanLocation:
         emit(state.copyWith(
-          step: ReceiptTransferStep.showProducts,
+          step: ValidasiPickingStep.showProducts,
           clearLocation: true,
           clearError: true,
         ));
         break;
-      case ReceiptTransferStep.confirming:
+      case ValidasiPickingStep.confirming:
         if (state.skippedLocation) {
           emit(state.copyWith(
-            step: ReceiptTransferStep.showProducts,
+            step: ValidasiPickingStep.showProducts,
             skippedLocation: false,
             clearLocation: true,
             clearError: true,
           ));
         } else {
           emit(state.copyWith(
-            step: ReceiptTransferStep.scanLocation,
+            step: ValidasiPickingStep.scanLocation,
             clearLocation: true,
             clearError: true,
           ));
@@ -87,24 +87,17 @@ class ReceiptTransferBloc extends Bloc<ReceiptTransferEvent, ReceiptTransferStat
         break;
     }
   }
+
   /// Fetch picking info, lalu pindah ke step showProducts
   Future<void> _onPickingScanned(
-    ReceiptTransferPickingScanned event,
-    Emitter<ReceiptTransferState> emit,
+    ValidasiPickingPickingScanned event,
+    Emitter<ValidasiPickingState> emit,
   ) async {
-    if (state.step != ReceiptTransferStep.scanPicking) return;
+    if (state.step != ValidasiPickingStep.scanPicking) return;
 
     emit(state.copyWith(isLoading: true, clearError: true));
     try {
       final pickingInfo = await _scanService.getPickingInfo(event.pickingName);
-
-      if (pickingInfo.pickingType != 'incoming') {
-        emit(state.copyWith(
-          isLoading: false,
-          errorMessage: 'Bukan receipt (tipe: ${pickingInfo.pickingType})',
-        ));
-        return;
-      }
 
       if (pickingInfo.state == 'done') {
         emit(state.copyWith(
@@ -135,7 +128,7 @@ class ReceiptTransferBloc extends Bloc<ReceiptTransferEvent, ReceiptTransferStat
 
       emit(state.copyWith(
         isLoading: false,
-        step: ReceiptTransferStep.showProducts,
+        step: ValidasiPickingStep.showProducts,
         pickingName: pickingInfo.name,
         pickingId: pickingInfo.id,
         pickingInfo: pickingInfo,
@@ -152,8 +145,8 @@ class ReceiptTransferBloc extends Bloc<ReceiptTransferEvent, ReceiptTransferStat
 
   /// User mengupdate data lot untuk satu move (dari dialog)
   void _onLotUpdated(
-    ReceiptTransferLotUpdated event,
-    Emitter<ReceiptTransferState> emit,
+    ValidasiPickingLotUpdated event,
+    Emitter<ValidasiPickingState> emit,
   ) {
     final updated = Map<int, MoveLotData>.from(state.moveLotMap);
     updated[event.data.moveId] = event.data;
@@ -162,31 +155,35 @@ class ReceiptTransferBloc extends Bloc<ReceiptTransferEvent, ReceiptTransferStat
 
   /// User selesai mengisi lot — pindah ke scanLocation atau langsung confirming
   void _onProductsConfirmed(
-    ReceiptTransferProductsConfirmed event,
-    Emitter<ReceiptTransferState> emit,
+    ValidasiPickingProductsConfirmed event,
+    Emitter<ValidasiPickingState> emit,
   ) {
-    if (state.step != ReceiptTransferStep.showProducts) return;
-    if (state.allMovesHaveLocation) {
-      // Semua produk sudah punya lokasi tujuan → skip scan location
-      emit(state.copyWith(step: ReceiptTransferStep.confirming, clearLocation: true));
+    if (state.step != ValidasiPickingStep.showProducts) return;
+    // Helper role atau semua produk sudah punya lokasi tujuan → skip scan location
+    if (event.skipLocation || state.allMovesHaveLocation) {
+      emit(state.copyWith(
+        step: ValidasiPickingStep.confirming,
+        skippedLocation: event.skipLocation,
+        clearLocation: true,
+      ));
     } else {
-      emit(state.copyWith(step: ReceiptTransferStep.scanLocation));
+      emit(state.copyWith(step: ValidasiPickingStep.scanLocation));
     }
   }
 
   /// Fetch location info untuk validasi lokasi tujuan ada di server
   Future<void> _onLocationScanned(
-    ReceiptTransferLocationScanned event,
-    Emitter<ReceiptTransferState> emit,
+    ValidasiPickingLocationScanned event,
+    Emitter<ValidasiPickingState> emit,
   ) async {
-    if (state.step != ReceiptTransferStep.scanLocation) return;
+    if (state.step != ValidasiPickingStep.scanLocation) return;
 
     emit(state.copyWith(isLoading: true, clearError: true));
     try {
       final locationInfo = await _scanService.getLocationInfo(event.locationCode);
       emit(state.copyWith(
         isLoading: false,
-        step: ReceiptTransferStep.confirming,
+        step: ValidasiPickingStep.confirming,
         locationCode: event.locationCode,
         targetLocationName: locationInfo.location,
       ));
@@ -200,20 +197,20 @@ class ReceiptTransferBloc extends Bloc<ReceiptTransferEvent, ReceiptTransferStat
   }
 
   void _onSkipLocation(
-    ReceiptTransferSkipLocation event,
-    Emitter<ReceiptTransferState> emit,
+    ValidasiPickingSkipLocation event,
+    Emitter<ValidasiPickingState> emit,
   ) {
-    if (state.step != ReceiptTransferStep.scanLocation) return;
+    if (state.step != ValidasiPickingStep.scanLocation) return;
     emit(state.copyWith(
-      step: ReceiptTransferStep.confirming,
+      step: ValidasiPickingStep.confirming,
       skippedLocation: true,
       clearLocation: true,
     ));
   }
 
   Future<void> _onConfirmed(
-    ReceiptTransferConfirmed event,
-    Emitter<ReceiptTransferState> emit,
+    ValidasiPickingConfirmed event,
+    Emitter<ValidasiPickingState> emit,
   ) async {
     if (state.pickingId == null) return;
 
@@ -228,7 +225,7 @@ class ReceiptTransferBloc extends Bloc<ReceiptTransferEvent, ReceiptTransferStat
 
       emit(state.copyWith(
         isLoading: false,
-        step: ReceiptTransferStep.done,
+        step: ValidasiPickingStep.done,
         result: result,
       ));
     } on ServerException catch (e) {
@@ -241,8 +238,8 @@ class ReceiptTransferBloc extends Bloc<ReceiptTransferEvent, ReceiptTransferStat
   }
 
   void _onMoveLocationSet(
-    ReceiptTransferMoveLocationSet event,
-    Emitter<ReceiptTransferState> emit,
+    ValidasiPickingMoveLocationSet event,
+    Emitter<ValidasiPickingState> emit,
   ) {
     final updated = Map<int, MoveLotData>.from(state.moveLotMap);
     final existing = updated[event.moveId];
@@ -256,8 +253,8 @@ class ReceiptTransferBloc extends Bloc<ReceiptTransferEvent, ReceiptTransferStat
   }
 
   void _onMoveLocationCleared(
-    ReceiptTransferMoveLocationCleared event,
-    Emitter<ReceiptTransferState> emit,
+    ValidasiPickingMoveLocationCleared event,
+    Emitter<ValidasiPickingState> emit,
   ) {
     final updated = Map<int, MoveLotData>.from(state.moveLotMap);
     final existing = updated[event.moveId];

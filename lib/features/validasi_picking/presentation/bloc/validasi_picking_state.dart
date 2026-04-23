@@ -1,16 +1,16 @@
 import 'package:equatable/equatable.dart';
 import '../../../scanner/data/scan_service.dart';
 
-enum ReceiptTransferStep {
+enum ValidasiPickingStep {
   scanPicking,
-  showProducts,  // step baru: isi lot/serial per produk
+  showProducts,
   scanLocation,
   confirming,
   done,
 }
 
-class ReceiptTransferState extends Equatable {
-  final ReceiptTransferStep step;
+class ValidasiPickingState extends Equatable {
+  final ValidasiPickingStep step;
 
   /// Nama picking hasil scan (contoh: WH/IN/00001)
   final String? pickingName;
@@ -37,8 +37,8 @@ class ReceiptTransferState extends Equatable {
   /// Hasil setelah konfirmasi berhasil
   final ReceiptTransferResult? result;
 
-  const ReceiptTransferState({
-    this.step = ReceiptTransferStep.scanPicking,
+  const ValidasiPickingState({
+    this.step = ValidasiPickingStep.scanPicking,
     this.pickingName,
     this.pickingId,
     this.pickingInfo,
@@ -51,8 +51,8 @@ class ReceiptTransferState extends Equatable {
     this.result,
   });
 
-  ReceiptTransferState copyWith({
-    ReceiptTransferStep? step,
+  ValidasiPickingState copyWith({
+    ValidasiPickingStep? step,
     String? pickingName,
     int? pickingId,
     PickingInfo? pickingInfo,
@@ -66,7 +66,7 @@ class ReceiptTransferState extends Equatable {
     bool clearError = false,
     bool clearLocation = false,
   }) {
-    return ReceiptTransferState(
+    return ValidasiPickingState(
       step: step ?? this.step,
       pickingName: pickingName ?? this.pickingName,
       pickingId: pickingId ?? this.pickingId,
@@ -84,14 +84,14 @@ class ReceiptTransferState extends Equatable {
   /// Step numbernya: 1-based, for StepIndicator (totalSteps=4)
   int get currentStepIndex {
     switch (step) {
-      case ReceiptTransferStep.scanPicking:
+      case ValidasiPickingStep.scanPicking:
         return 1;
-      case ReceiptTransferStep.showProducts:
+      case ValidasiPickingStep.showProducts:
         return 2;
-      case ReceiptTransferStep.scanLocation:
+      case ValidasiPickingStep.scanLocation:
         return 3;
-      case ReceiptTransferStep.confirming:
-      case ReceiptTransferStep.done:
+      case ValidasiPickingStep.confirming:
+      case ValidasiPickingStep.done:
         return 4;
     }
   }

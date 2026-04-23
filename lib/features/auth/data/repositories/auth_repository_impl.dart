@@ -24,7 +24,16 @@ class AuthRepositoryImpl implements AuthRepository {
     );
     await _secureStorage.saveUserId(user.id);
     await _secureStorage.saveUserName(user.name);
-    return user;
+    // Fetch warehouse role (non-critical; session cookie already set by login)
+    final role = await _remoteDataSource.getUserRole(baseUrl: baseUrl);
+    await _secureStorage.saveUserRole(role);
+    return UserModel(
+      id: user.id,
+      name: user.name,
+      login: user.login,
+      sessionId: user.sessionId,
+      role: role,
+    );
   }
 
   @override
@@ -41,6 +50,7 @@ class AuthRepositoryImpl implements AuthRepository {
     final userId = await _secureStorage.getUserId();
     final userName = await _secureStorage.getUserName();
     final sessionId = await _secureStorage.getSessionId();
+    final role = await _secureStorage.getUserRole();
 
     if (userId == null || userName == null) return null;
 
@@ -49,6 +59,7 @@ class AuthRepositoryImpl implements AuthRepository {
       name: userName,
       login: '',
       sessionId: sessionId,
+      role: role,
     );
   }
 

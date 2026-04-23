@@ -6,6 +6,7 @@ class UserModel extends User {
     required super.name,
     required super.login,
     super.sessionId,
+    super.role,
   });
 
   factory UserModel.fromJson(Map<String, dynamic> json) {
@@ -20,6 +21,7 @@ class UserModel extends User {
         id: result['uid'] as int,
         name: result['name'] as String? ?? '',
         login: result['username'] as String? ?? '',
+        role: result['role'] as String? ?? '',
       );
     }
 
@@ -31,6 +33,7 @@ class UserModel extends User {
         name: profile['name'] as String? ?? '',
         // email sometimes used as login identifier in custom responses
         login: (profile['email'] as String?) ?? (profile['login'] as String?) ?? '',
+        role: profile['role'] as String? ?? '',
       );
     }
 
@@ -42,7 +45,8 @@ class UserModel extends User {
     required String name,
     required String login,
     String? sessionId,
+    String role = '',
   }) {
-    return UserModel(id: id, name: name, login: login, sessionId: sessionId);
+    return UserModel(id: id, name: name, login: login, sessionId: sessionId, role: role);
   }
 }

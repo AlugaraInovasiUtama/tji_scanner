@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import '../bloc/receipt_transfer_bloc.dart';
-import '../bloc/receipt_transfer_event.dart';
-import '../bloc/receipt_transfer_state.dart';
+import '../bloc/validasi_picking_bloc.dart';
+import '../bloc/validasi_picking_event.dart';
+import '../bloc/validasi_picking_state.dart';
 import '../../../scanner/widgets/qr_scanner_widget.dart';
 import '../../../scanner/widgets/step_indicator_widget.dart';
 import '../../../scanner/widgets/scanned_info_card.dart';
@@ -12,33 +12,44 @@ import '../../../../shared/theme/app_text_styles.dart';
 import '../../../../shared/widgets/app_button.dart';
 import '../../../../shared/widgets/loading_overlay.dart';
 import '../../../../features/scanner/data/scan_service.dart';
+import '../../../../features/auth/presentation/bloc/auth_bloc.dart';
+import '../../../../features/auth/presentation/bloc/auth_state.dart';
 
 
-class ReceiptTransferScreen extends StatelessWidget {
+class ValidasiPickingScreen extends StatelessWidget {
   final ScanService scanService;
-  const ReceiptTransferScreen({super.key, required this.scanService});
+  const ValidasiPickingScreen({super.key, required this.scanService});
 
-  static const _stepLabels = ['Scan Receipt', 'Produk & Lot', 'Lokasi', 'Konfirmasi'];
+  static const _stepLabels = ['Scan Picking', 'Produk & Lot', 'Lokasi', 'Konfirmasi'];
 
   @override
   Widget build(BuildContext context) {
     return BlocProvider(
-      create: (_) => ReceiptTransferBloc(scanService),
-      child: const _ReceiptTransferView(),
+      create: (_) => ValidasiPickingBloc(scanService),
+      child: const _ValidasiPickingView(),
     );
   }
 }
 
 // ─── Main view ───────────────────────────────────────────────────────────────
 
-class _ReceiptTransferView extends StatelessWidget {
-  const _ReceiptTransferView();
+class _ValidasiPickingView extends StatelessWidget {
+  const _ValidasiPickingView();
+
+  bool _isAdmin(BuildContext context) {
+    final authState = context.read<AuthBloc>().state;
+    if (authState is AuthAuthenticated) {
+      // Treat everyone who is NOT explicitly 'helper' as admin (full access)
+      return authState.user.role != 'helper';
+    }
+    return true; // default: full access
+  }
 
   @override
   Widget build(BuildContext context) {
-    return BlocConsumer<ReceiptTransferBloc, ReceiptTransferState>(
+    return BlocConsumer<ValidasiPickingBloc, ValidasiPickingState>(
       listener: (context, state) {
-        if (state.step == ReceiptTransferStep.done) {
+        if (state.step == ValidasiPickingStep.done) {
           ScanFeedback.complete();
         }
         if (state.errorMessage != null) {
@@ -53,21 +64,21 @@ class _ReceiptTransferView extends StatelessWidget {
       },
       builder: (context, state) {
         String loadingMsg = 'Memproses...';
-        if (state.step == ReceiptTransferStep.scanPicking) {
-          loadingMsg = 'Mengambil data receipt...';
-        } else if (state.step == ReceiptTransferStep.scanLocation) {
+        if (state.step == ValidasiPickingStep.scanPicking) {
+          loadingMsg = 'Mengambil data picking...';
+        } else if (state.step == ValidasiPickingStep.scanLocation) {
           loadingMsg = 'Memverifikasi lokasi...';
-        } else if (state.step == ReceiptTransferStep.confirming) {
+        } else if (state.step == ValidasiPickingStep.confirming) {
           loadingMsg = 'Memvalidasi picking & transfer...';
         }
 
-        final canGoBack = state.step != ReceiptTransferStep.scanPicking &&
-            state.step != ReceiptTransferStep.done;
+        final canGoBack = state.step != ValidasiPickingStep.scanPicking &&
+            state.step != ValidasiPickingStep.done;
 
         return WillPopScope(
           onWillPop: () async {
             if (canGoBack) {
-              context.read<ReceiptTransferBloc>().add(ReceiptTransferGoBack());
+              context.read<ValidasiPickingBloc>().add(ValidasiPickingGoBack());
               return false;
             }
             return true;
@@ -82,7 +93,7 @@ class _ReceiptTransferView extends StatelessWidget {
                 ? IconButton(
                     icon: const Icon(Icons.arrow_back),
                     onPressed: () =>
-                        context.read<ReceiptTransferBloc>().add(ReceiptTransferGoBack()),
+                        context.read<ValidasiPickingBloc>().add(ValidasiPickingGoBack()),
                   )
                 : null,
             actions: [
@@ -90,7 +101,7 @@ class _ReceiptTransferView extends StatelessWidget {
                 icon: const Icon(Icons.refresh),
                 tooltip: 'Reset',
                 onPressed: () =>
-                    context.read<ReceiptTransferBloc>().add(ReceiptTransferReset()),
+                    context.read<ValidasiPickingBloc>().add(ValidasiPickingReset()),
               ),
             ],
           ),
@@ -104,7 +115,7 @@ class _ReceiptTransferView extends StatelessWidget {
                   child: StepIndicatorWidget(
                     currentStep: state.currentStepIndex,
                     totalSteps: 4,
-                    stepLabels: ReceiptTransferScreen._stepLabels,
+                    stepLabels: ValidasiPickingScreen._stepLabels,
                   ),
                 ),
                 Expanded(child: _buildBody(context, state)),
@@ -117,23 +128,24 @@ class _ReceiptTransferView extends StatelessWidget {
     );
   }
 
-  Widget _buildBody(BuildContext context, ReceiptTransferState state) {
+  Widget _buildBody(BuildContext context, ValidasiPickingState state) {
+    final isAdmin = _isAdmin(context);
     switch (state.step) {
-      case ReceiptTransferStep.scanPicking:
+      case ValidasiPickingStep.scanPicking:
         return _ScanPickingView();
-      case ReceiptTransferStep.showProducts:
-        return _ShowProductsView(state: state);
-      case ReceiptTransferStep.scanLocation:
+      case ValidasiPickingStep.showProducts:
+        return _ShowProductsView(state: state, isAdmin: isAdmin);
+      case ValidasiPickingStep.scanLocation:
         return _ScanLocationView(state: state);
-      case ReceiptTransferStep.confirming:
-        return _ConfirmView(state: state);
-      case ReceiptTransferStep.done:
+      case ValidasiPickingStep.confirming:
+        return _ConfirmView(state: state, isAdmin: isAdmin);
+      case ValidasiPickingStep.done:
         return _ResultView(state: state);
     }
   }
 }
 
-// ─── Step 1: Scan Receipt ────────────────────────────────────────────────────
+// ─── Step 1: Scan Picking ────────────────────────────────────────────────────
 
 class _ScanPickingView extends StatelessWidget {
   @override
@@ -149,11 +161,11 @@ class _ScanPickingView extends StatelessWidget {
             ),
             child: QrScannerWidget(
               expectedType: 'any',
-              instruction: '📋 Step 1: Scan QR nomor Receipt (WH/IN/...)',
+              instruction: '📋 Step 1: Scan QR nomor Picking',
               onScanSuccess: (code) {
                 context
-                    .read<ReceiptTransferBloc>()
-                    .add(ReceiptTransferPickingScanned(code));
+                    .read<ValidasiPickingBloc>()
+                    .add(ValidasiPickingPickingScanned(code));
               },
             ),
           ),
@@ -162,7 +174,7 @@ class _ScanPickingView extends StatelessWidget {
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 20),
           child: Text(
-            'Scan barcode / QR kode pada dokumen receipt dari vendor',
+            'Scan barcode / QR kode pada dokumen picking',
             textAlign: TextAlign.center,
             style: AppTextStyles.bodyMedium.copyWith(color: AppColors.textSecondary),
           ),
@@ -176,8 +188,9 @@ class _ScanPickingView extends StatelessWidget {
 // ─── Step 2: Produk & Lot ────────────────────────────────────────────────────
 
 class _ShowProductsView extends StatelessWidget {
-  final ReceiptTransferState state;
-  const _ShowProductsView({required this.state});
+  final ValidasiPickingState state;
+  final bool isAdmin;
+  const _ShowProductsView({required this.state, required this.isAdmin});
 
   @override
   Widget build(BuildContext context) {
@@ -193,15 +206,21 @@ class _ShowProductsView extends StatelessWidget {
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
           child: ScannedInfoCard(
-            title: '✅ Receipt',
+            title: '✅ Picking',
             titleColor: AppColors.success,
-            fields: {'Nomor': state.pickingName ?? '-'},
+            fields: {
+              'Nomor': state.pickingName ?? '-',
+              if (state.pickingInfo?.pickingTypeName != null && state.pickingInfo!.pickingTypeName!.isNotEmpty)
+                'Tipe': state.pickingInfo!.pickingTypeName!,
+            },
           ),
         ),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
           child: Text(
-            'Isi lot/serial untuk produk yang membutuhkan. Tap ikon lokasi untuk set lokasi tujuan per produk.',
+            isAdmin
+                ? 'Isi lot/serial untuk produk yang membutuhkan. Tap ikon lokasi untuk set lokasi tujuan per produk.'
+                : 'Isi lot/serial untuk produk yang membutuhkan.',
             style: AppTextStyles.bodySmall.copyWith(color: AppColors.textSecondary),
           ),
         ),
@@ -220,9 +239,10 @@ class _ShowProductsView extends StatelessWidget {
                 line: line,
                 lotData: lotData,
                 isDone: isDone,
+                isAdmin: isAdmin,
                 onEdit: needsLot
                     ? () async {
-                        final bloc = context.read<ReceiptTransferBloc>();
+                        final bloc = context.read<ValidasiPickingBloc>();
                         final result = await showModalBottomSheet<MoveLotData>(
                         context: context,
                         isScrollControlled: true,
@@ -241,40 +261,42 @@ class _ShowProductsView extends StatelessWidget {
                       );
                         if (result != null && context.mounted) {
                           context
-                              .read<ReceiptTransferBloc>()
-                              .add(ReceiptTransferLotUpdated(result));
+                              .read<ValidasiPickingBloc>()
+                              .add(ValidasiPickingLotUpdated(result));
                         }
                       }
                     : null,
-                onLocationTap: () async {
-                  final bloc = context.read<ReceiptTransferBloc>();
-                  final result = await showModalBottomSheet<_LocationResult>(
-                    context: context,
-                    isScrollControlled: true,
-                    backgroundColor: AppColors.surface,
-                    elevation: 4,
-                    builder: (_) => _LocationScanSheet(
-                      bloc: bloc,
-                      moveId: line.moveId,
-                      currentLocationName: lotData?.destLocationName,
-                    ),
-                  );
-                  if (result != null && context.mounted) {
-                    if (result.clear) {
-                      context.read<ReceiptTransferBloc>().add(
-                            ReceiptTransferMoveLocationCleared(line.moveId),
-                          );
-                    } else {
-                      context.read<ReceiptTransferBloc>().add(
-                            ReceiptTransferMoveLocationSet(
-                              line.moveId,
-                              result.code,
-                              result.name,
-                            ),
-                          );
-                    }
-                  }
-                },
+                onLocationTap: isAdmin
+                    ? () async {
+                        final bloc = context.read<ValidasiPickingBloc>();
+                        final result = await showModalBottomSheet<_LocationResult>(
+                          context: context,
+                          isScrollControlled: true,
+                          backgroundColor: AppColors.surface,
+                          elevation: 4,
+                          builder: (_) => _LocationScanSheet(
+                            bloc: bloc,
+                            moveId: line.moveId,
+                            currentLocationName: lotData?.destLocationName,
+                          ),
+                        );
+                        if (result != null && context.mounted) {
+                          if (result.clear) {
+                            context.read<ValidasiPickingBloc>().add(
+                                  ValidasiPickingMoveLocationCleared(line.moveId),
+                                );
+                          } else {
+                            context.read<ValidasiPickingBloc>().add(
+                                  ValidasiPickingMoveLocationSet(
+                                    line.moveId,
+                                    result.code,
+                                    result.name,
+                                  ),
+                                );
+                          }
+                        }
+                      }
+                    : null,
               );
             },
           ),
@@ -284,7 +306,7 @@ class _ShowProductsView extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              if (state.someButNotAllMovesHaveLocation)
+              if (isAdmin && state.someButNotAllMovesHaveLocation)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 6),
                   child: Text(
@@ -294,17 +316,19 @@ class _ShowProductsView extends StatelessWidget {
                   ),
                 ),
               AppButton(
-                label: state.allMovesHaveLocation
-                    ? 'Langsung ke Konfirmasi'
-                    : 'Lanjut ke Lokasi Tujuan',
-                icon: state.allMovesHaveLocation
+                label: isAdmin
+                    ? (state.allMovesHaveLocation
+                        ? 'Langsung ke Konfirmasi'
+                        : 'Lanjut ke Lokasi Tujuan')
+                    : 'Lanjut ke Konfirmasi',
+                icon: (isAdmin && state.allMovesHaveLocation) || !isAdmin
                     ? Icons.check_circle_outline
                     : Icons.arrow_forward,
-                onPressed: (trackedIncomplete || state.someButNotAllMovesHaveLocation)
+                onPressed: (trackedIncomplete || (isAdmin && state.someButNotAllMovesHaveLocation))
                     ? null
                     : () => context
-                        .read<ReceiptTransferBloc>()
-                        .add(ReceiptTransferProductsConfirmed()),
+                        .read<ValidasiPickingBloc>()
+                        .add(ValidasiPickingProductsConfirmed(skipLocation: !isAdmin)),
               ),
             ],
           ),
@@ -320,6 +344,7 @@ class _ProductLineCard extends StatelessWidget {
   final PickingLine line;
   final MoveLotData? lotData;
   final bool isDone;
+  final bool isAdmin;
   final VoidCallback? onEdit;
   final VoidCallback? onLocationTap;
 
@@ -327,6 +352,7 @@ class _ProductLineCard extends StatelessWidget {
     required this.line,
     required this.lotData,
     required this.isDone,
+    required this.isAdmin,
     this.onEdit,
     this.onLocationTap,
   });
@@ -382,39 +408,40 @@ class _ProductLineCard extends StatelessWidget {
               Text('Belum ada $trackingLabel',
                   style:
                       AppTextStyles.bodySmall.copyWith(color: AppColors.warning)),
-            // Per-product destination location
-            GestureDetector(
-              onTap: onLocationTap,
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.location_on_outlined,
-                    size: 13,
-                    color: lotData?.destLocationName != null
-                        ? AppColors.info
-                        : AppColors.textHint,
-                  ),
-                  const SizedBox(width: 3),
-                  Expanded(
-                    child: Text(
-                      lotData?.destLocationName ?? 'Tap untuk set lokasi tujuan',
-                      style: AppTextStyles.bodySmall.copyWith(
-                        color: lotData?.destLocationName != null
-                            ? AppColors.info
-                            : AppColors.textHint,
+            // Per-product destination location (admin only)
+            if (isAdmin)
+              GestureDetector(
+                onTap: onLocationTap,
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.location_on_outlined,
+                      size: 13,
+                      color: lotData?.destLocationName != null
+                          ? AppColors.info
+                          : AppColors.textHint,
+                    ),
+                    const SizedBox(width: 3),
+                    Expanded(
+                      child: Text(
+                        lotData?.destLocationName ?? 'Tap untuk set lokasi tujuan',
+                        style: AppTextStyles.bodySmall.copyWith(
+                          color: lotData?.destLocationName != null
+                              ? AppColors.info
+                              : AppColors.textHint,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
                     ),
-                  ),
-                  if (lotData?.destLocationName != null)
-                    GestureDetector(
-                      onTap: onLocationTap,
-                      child: const Icon(Icons.close, size: 13, color: AppColors.textHint),
-                    ),
-                ],
+                    if (lotData?.destLocationName != null)
+                      GestureDetector(
+                        onTap: onLocationTap,
+                        child: const Icon(Icons.close, size: 13, color: AppColors.textHint),
+                      ),
+                  ],
+                ),
               ),
-            ),
           ],
         ),
         trailing: onEdit != null
@@ -446,7 +473,7 @@ class _LotEntrySheet extends StatefulWidget {
 
   /// Passed explicitly because the sheet runs in a separate modal route
   /// (no BLoC ancestor in that widget tree).
-  final ReceiptTransferBloc bloc;
+  final ValidasiPickingBloc bloc;
 
   const _LotEntrySheet({
     required this.line,
@@ -487,7 +514,6 @@ class _LotEntrySheetState extends State<_LotEntrySheet> {
         : existing
             .map((e) => _LotRow(lotName: e.lotName, qty: e.qty))
             .toList();
-    // Default Total Qty to demand
     final demand = widget.line.qtyDemand;
     _totalQtyCtrl.text = demand % 1 == 0
         ? demand.toInt().toString()
@@ -511,8 +537,6 @@ class _LotEntrySheetState extends State<_LotEntrySheet> {
 
   bool get _manualCanSave =>
       _rows.every((r) => r.lotCtrl.text.trim().isNotEmpty);
-
-  // ── existing / manual helpers ──────────────────────────────────────────────
 
   void _addRow() => setState(() => _rows.add(_LotRow()));
 
@@ -575,8 +599,6 @@ class _LotEntrySheetState extends State<_LotEntrySheet> {
       if (mounted) setState(() => _searching = false);
     }
   }
-
-  // ── generate helpers ───────────────────────────────────────────────────────
 
   Future<void> _fetchNextSequence() async {
     setState(() => _fetchingSequence = true);
@@ -651,8 +673,6 @@ class _LotEntrySheetState extends State<_LotEntrySheet> {
     }
   }
 
-  // ── build ──────────────────────────────────────────────────────────────────
-
   @override
   Widget build(BuildContext context) {
     final label = _isSerial ? 'Serial Number' : 'Nomor Lot';
@@ -683,7 +703,6 @@ class _LotEntrySheetState extends State<_LotEntrySheet> {
           child: Column(
             mainAxisSize: MainAxisSize.max,
             children: [
-              // ── Drag handle ─────────────────────────────────────────────
               Container(
                 margin: const EdgeInsets.only(top: 12, bottom: 8),
                 width: 40,
@@ -693,8 +712,6 @@ class _LotEntrySheetState extends State<_LotEntrySheet> {
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
-
-              // ── Header ─────────────────────────────────────────────────
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: Row(
@@ -740,8 +757,6 @@ class _LotEntrySheetState extends State<_LotEntrySheet> {
                 ),
               ),
               const SizedBox(height: 8),
-
-              // ── Mode toggle ─────────────────────────────────────────────
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: SegmentedButton<String>(
@@ -759,13 +774,10 @@ class _LotEntrySheetState extends State<_LotEntrySheet> {
                 ),
               ),
               const Divider(height: 24),
-
-              // ── CONTENT AREA (1 Expanded saja) ──────────────────────────
               Expanded(
                 child: _mode == 'existing'
                     ? Column(
                         children: [
-                          // Search bar
                           Padding(
                             padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
                             child: Row(
@@ -788,8 +800,7 @@ class _LotEntrySheetState extends State<_LotEntrySheet> {
                                 ElevatedButton(
                                   onPressed: _searching
                                       ? null
-                                      : () =>
-                                            _doSearch(_searchCtrl.text.trim()),
+                                      : () => _doSearch(_searchCtrl.text.trim()),
                                   child: _searching
                                       ? const SizedBox(
                                           width: 16,
@@ -803,24 +814,18 @@ class _LotEntrySheetState extends State<_LotEntrySheet> {
                               ],
                             ),
                           ),
-
-                          // Body existing: search results atau manual entry
                           Expanded(
                             child: _searchResults.isNotEmpty
                                 ? ListView.separated(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 8,
-                                    ),
+                                    padding: const EdgeInsets.symmetric(horizontal: 8),
                                     itemCount: _searchResults.length,
                                     separatorBuilder: (_, __) =>
                                         const Divider(height: 1),
                                     itemBuilder: (_, idx) {
                                       final lot = _searchResults[idx];
-                                      final isSelected = _selectedQty
-                                          .containsKey(lot.id);
+                                      final isSelected = _selectedQty.containsKey(lot.id);
                                       final qtyCtrl = TextEditingController(
-                                        text: (_selectedQty[lot.id] ?? lot.qty)
-                                            .toString(),
+                                        text: (_selectedQty[lot.id] ?? lot.qty).toString(),
                                       );
 
                                       return ListTile(
@@ -850,24 +855,18 @@ class _LotEntrySheetState extends State<_LotEntrySheet> {
                                             ),
                                             decoration: const InputDecoration(
                                               isDense: true,
-                                              contentPadding:
-                                                  EdgeInsets.symmetric(
-                                                    horizontal: 8,
-                                                    vertical: 6,
-                                                  ),
+                                              contentPadding: EdgeInsets.symmetric(
+                                                horizontal: 8,
+                                                vertical: 6,
+                                              ),
                                               border: OutlineInputBorder(),
                                             ),
-                                            keyboardType:
-                                                const TextInputType.numberWithOptions(
-                                                  decimal: true,
-                                                ),
+                                            keyboardType: const TextInputType.numberWithOptions(
+                                              decimal: true,
+                                            ),
                                             onChanged: (v) {
-                                              final val =
-                                                  double.tryParse(v) ?? 0.0;
-                                              setState(
-                                                () =>
-                                                    _selectedQty[lot.id] = val,
-                                              );
+                                              final val = double.tryParse(v) ?? 0.0;
+                                              setState(() => _selectedQty[lot.id] = val);
                                             },
                                           ),
                                         ),
@@ -875,119 +874,83 @@ class _LotEntrySheetState extends State<_LotEntrySheet> {
                                     },
                                   )
                                 : SingleChildScrollView(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 16,
-                                    ),
+                                    padding: const EdgeInsets.symmetric(horizontal: 16),
                                     child: Column(
                                       children: [
                                         for (int i = 0; i < _rows.length; i++)
                                           Padding(
-                                            padding: const EdgeInsets.only(
-                                              bottom: 10,
-                                            ),
+                                            padding: const EdgeInsets.only(bottom: 10),
                                             child: Row(
                                               children: [
                                                 Expanded(
                                                   flex: _isSerial ? 1 : 2,
                                                   child: TextField(
-                                                    controller:
-                                                        _rows[i].lotCtrl,
+                                                    controller: _rows[i].lotCtrl,
                                                     style: const TextStyle(
-                                                      color:
-                                                          AppColors.textPrimary,
+                                                      color: AppColors.textPrimary,
                                                     ),
                                                     decoration: InputDecoration(
                                                       labelText: label,
-                                                      hintText: _isSerial
-                                                          ? 'SN001'
-                                                          : 'LOT-001',
-                                                      border:
-                                                          const OutlineInputBorder(),
+                                                      border: const OutlineInputBorder(),
                                                       isDense: true,
                                                     ),
-                                                    onChanged: (_) =>
-                                                        setState(() {}),
                                                   ),
                                                 ),
                                                 if (!_isSerial) ...[
                                                   const SizedBox(width: 8),
                                                   Expanded(
                                                     child: TextField(
-                                                      controller:
-                                                          _rows[i].qtyCtrl,
+                                                      controller: _rows[i].qtyCtrl,
                                                       style: const TextStyle(
-                                                        color: AppColors
-                                                            .textPrimary,
+                                                        color: AppColors.textPrimary,
                                                       ),
-                                                      decoration:
-                                                          const InputDecoration(
-                                                            labelText: 'Qty',
-                                                            border:
-                                                                OutlineInputBorder(),
-                                                            isDense: true,
-                                                          ),
-                                                      keyboardType:
-                                                          const TextInputType.numberWithOptions(
-                                                            decimal: true,
-                                                          ),
+                                                      decoration: const InputDecoration(
+                                                        labelText: 'Qty',
+                                                        border: OutlineInputBorder(),
+                                                        isDense: true,
+                                                      ),
+                                                      keyboardType: const TextInputType.numberWithOptions(
+                                                        decimal: true,
+                                                      ),
                                                     ),
                                                   ),
                                                 ],
-                                                const SizedBox(width: 8),
-                                                InkWell(
-                                                  onTap: _rows.length > 1
-                                                      ? () => _removeRow(i)
-                                                      : null,
-                                                  child: Icon(
-                                                    Icons.remove_circle_outline,
-                                                    color: _rows.length > 1
-                                                        ? AppColors.error
-                                                        : Colors.grey.shade300,
-                                                  ),
+                                                IconButton(
+                                                  icon: const Icon(Icons.remove_circle_outline,
+                                                      color: AppColors.error),
+                                                  onPressed: () => _removeRow(i),
                                                 ),
                                               ],
                                             ),
                                           ),
-                                        const SizedBox(height: 8),
+                                        TextButton.icon(
+                                          onPressed: _addRow,
+                                          icon: const Icon(Icons.add),
+                                          label: Text('Tambah $label'),
+                                        ),
                                       ],
                                     ),
                                   ),
                           ),
-
-                          // Action bar — existing mode
                           Padding(
-                            padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+                            padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
                             child: Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
-                                if (_searchResults.isEmpty)
-                                  TextButton.icon(
-                                    onPressed: _addRow,
-                                    icon: const Icon(Icons.add),
-                                    label: Text(
-                                      'Tambah ${_isSerial ? 'Serial' : 'Lot'}',
-                                    ),
-                                  )
-                                else
-                                  const SizedBox.shrink(),
-                                ElevatedButton.icon(
-                                  onPressed: _searchResults.isNotEmpty
-                                      ? (_selectedQty.isNotEmpty
-                                            ? _saveSelected
-                                            : null)
-                                      : (_manualCanSave ? _saveManual : null),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: AppColors.primary,
-                                    foregroundColor: Colors.black,
-                                    disabledBackgroundColor:
-                                        AppColors.textDisabled,
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(10),
+                                if (_searchResults.isNotEmpty) ...[
+                                  Expanded(
+                                    child: AppButton(
+                                      label: 'Pilih Lot (${_selectedQty.length})',
+                                      onPressed: _selectedQty.isEmpty ? null : _saveSelected,
                                     ),
                                   ),
-                                  icon: const Icon(Icons.check, size: 18),
-                                  label: const Text('Simpan'),
-                                ),
+                                ] else ...[
+                                  Expanded(
+                                    child: AppButton(
+                                      label: 'Simpan',
+                                      onPressed: _manualCanSave ? _saveManual : null,
+                                    ),
+                                  ),
+                                ],
                               ],
                             ),
                           ),
@@ -998,18 +961,12 @@ class _LotEntrySheetState extends State<_LotEntrySheet> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            // First serial/lot — always shown
                             TextField(
                               controller: _firstCtrl,
-                              style: const TextStyle(
-                                color: AppColors.textPrimary,
-                              ),
+                              style: const TextStyle(color: AppColors.textPrimary),
                               decoration: InputDecoration(
-                                labelText: _isSerial
-                                    ? 'First Serial Number'
-                                    : 'First Lot Number',
-                                hintText:
-                                    _isSerial ? 'e.g. SN0001' : 'e.g. LOT-001',
+                                labelText: _isSerial ? 'First Serial Number' : 'First Lot Number',
+                                hintText: _isSerial ? 'e.g. SN0001' : 'e.g. LOT-001',
                                 border: const OutlineInputBorder(),
                                 isDense: true,
                                 suffixIcon: _fetchingSequence
@@ -1018,96 +975,70 @@ class _LotEntrySheetState extends State<_LotEntrySheet> {
                                         child: SizedBox(
                                           width: 16,
                                           height: 16,
-                                          child: CircularProgressIndicator(
-                                            strokeWidth: 2,
-                                          ),
+                                          child: CircularProgressIndicator(strokeWidth: 2),
                                         ),
                                       )
                                     : null,
                               ),
                               onChanged: (_) => setState(() => _generateError = null),
                             ),
-                            if (_generateError != null) ...[  
+                            if (_generateError != null) ...[
                               const SizedBox(height: 6),
                               Text(
                                 _generateError!,
-                                style: AppTextStyles.bodySmall
-                                    .copyWith(color: AppColors.error),
+                                style: AppTextStyles.bodySmall.copyWith(color: AppColors.error),
                               ),
                             ],
                             const SizedBox(height: 10),
-
-                            // Serial mode: only Count
                             if (_isSerial)
                               TextField(
                                 controller: _countCtrl,
-                                style: const TextStyle(
-                                  color: AppColors.textPrimary,
-                                ),
+                                style: const TextStyle(color: AppColors.textPrimary),
                                 decoration: const InputDecoration(
                                   labelText: 'Jumlah Serial (Count)',
                                   hintText: 'e.g. 10',
                                   border: OutlineInputBorder(),
                                   isDense: true,
                                 ),
-                                keyboardType:
-                                    const TextInputType.numberWithOptions(
-                                      decimal: false,
-                                    ),
+                                keyboardType: const TextInputType.numberWithOptions(decimal: false),
                               )
                             else ...[
-                              // Lot mode: Qty per lot + Total qty
                               Row(
                                 children: [
                                   Expanded(
                                     child: TextField(
                                       controller: _qtyPerLotCtrl,
-                                      style: const TextStyle(
-                                        color: AppColors.textPrimary,
-                                      ),
+                                      style: const TextStyle(color: AppColors.textPrimary),
                                       decoration: const InputDecoration(
                                         labelText: 'Qty per Lot',
                                         hintText: 'e.g. 10',
                                         border: OutlineInputBorder(),
                                         isDense: true,
                                       ),
-                                      keyboardType:
-                                          const TextInputType.numberWithOptions(
-                                            decimal: true,
-                                          ),
+                                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
                                     ),
                                   ),
                                   const SizedBox(width: 10),
                                   Expanded(
                                     child: TextField(
                                       controller: _totalQtyCtrl,
-                                      style: const TextStyle(
-                                        color: AppColors.textPrimary,
-                                      ),
+                                      style: const TextStyle(color: AppColors.textPrimary),
                                       decoration: const InputDecoration(
                                         labelText: 'Total Qty Diterima',
                                         hintText: 'e.g. 100',
                                         border: OutlineInputBorder(),
                                         isDense: true,
                                       ),
-                                      keyboardType:
-                                          const TextInputType.numberWithOptions(
-                                            decimal: true,
-                                          ),
+                                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
                                     ),
                                   ),
                                 ],
                               ),
                             ],
-                            const SizedBox(height: 12),
+                            const SizedBox(height: 16),
                             AppButton(
-                              label: _generating
-                                  ? 'Generating...'
-                                  : 'Generate & Simpan',
-                              icon: Icons.auto_awesome,
-                              onPressed: (_generating || _fetchingSequence)
-                                  ? null
-                                  : _doGenerate,
+                              label: _generating ? 'Generating...' : 'Generate',
+                              onPressed: _generating ? null : _doGenerate,
                             ),
                           ],
                         ),
@@ -1121,7 +1052,27 @@ class _LotEntrySheetState extends State<_LotEntrySheet> {
   }
 }
 
-// ─── Helper: location scan result ────────────────────────────────────────────
+// ─── Helper: one manual lot/serial row ───────────────────────────────────────
+
+class _LotRow {
+  final TextEditingController lotCtrl;
+  final TextEditingController qtyCtrl;
+
+  _LotRow({String lotName = '', double qty = 1.0})
+      : lotCtrl = TextEditingController(text: lotName),
+        qtyCtrl = TextEditingController(
+          text: lotName.isNotEmpty
+              ? (qty % 1 == 0 ? qty.toInt().toString() : qty.toString())
+              : '',
+        );
+
+  void dispose() {
+    lotCtrl.dispose();
+    qtyCtrl.dispose();
+  }
+}
+
+// ─── Location result helper ───────────────────────────────────────────────────
 
 class _LocationResult {
   final String code;
@@ -1131,10 +1082,10 @@ class _LocationResult {
   static const _LocationResult cleared = _LocationResult(code: '', name: '', clear: true);
 }
 
-// ─── Bottom sheet: scan lokasi per produk ────────────────────────────────────
+// ─── Location scan bottom sheet ───────────────────────────────────────────────
 
 class _LocationScanSheet extends StatefulWidget {
-  final ReceiptTransferBloc bloc;
+  final ValidasiPickingBloc bloc;
   final int moveId;
   final String? currentLocationName;
 
@@ -1182,7 +1133,6 @@ class _LocationScanSheetState extends State<_LocationScanSheet> {
         height: MediaQuery.of(context).size.height * 0.6,
         child: Column(
           children: [
-            // Drag handle
             Container(
               margin: const EdgeInsets.only(top: 12, bottom: 8),
               width: 40,
@@ -1255,31 +1205,10 @@ class _LocationScanSheetState extends State<_LocationScanSheet> {
   }
 }
 
-// ─── Helper: one manual lot/serial row ───────────────────────────────────────
-
-class _LotRow {
-  final TextEditingController lotCtrl;
-  final TextEditingController qtyCtrl;
-
-  _LotRow({String lotName = '', double qty = 1.0})
-      : lotCtrl = TextEditingController(text: lotName),
-        qtyCtrl = TextEditingController(
-          // Show qty when pre-filled from saved data; empty for fresh rows
-          text: lotName.isNotEmpty
-              ? (qty % 1 == 0 ? qty.toInt().toString() : qty.toString())
-              : '',
-        );
-
-  void dispose() {
-    lotCtrl.dispose();
-    qtyCtrl.dispose();
-  }
-}
-
 // ─── Step 3: Scan Lokasi Tujuan (Opsional) ───────────────────────────────────
 
 class _ScanLocationView extends StatelessWidget {
-  final ReceiptTransferState state;
+  final ValidasiPickingState state;
   const _ScanLocationView({required this.state});
 
   @override
@@ -1289,7 +1218,7 @@ class _ScanLocationView extends StatelessWidget {
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
           child: ScannedInfoCard(
-            title: '✅ Receipt',
+            title: '✅ Picking',
             titleColor: AppColors.success,
             fields: {'Nomor': state.pickingName ?? '-'},
           ),
@@ -1307,8 +1236,8 @@ class _ScanLocationView extends StatelessWidget {
               instruction: '🗄️ Step 3: Scan lokasi tujuan penyimpanan',
               onScanSuccess: (code) {
                 context
-                    .read<ReceiptTransferBloc>()
-                    .add(ReceiptTransferLocationScanned(code));
+                    .read<ValidasiPickingBloc>()
+                    .add(ValidasiPickingLocationScanned(code));
               },
             ),
           ),
@@ -1319,17 +1248,17 @@ class _ScanLocationView extends StatelessWidget {
           child: Column(
             children: [
               Text(
-                'Scan QR lokasi rak tujuan — atau lewati untuk hanya validasi receipt',
+                'Scan QR lokasi rak tujuan — atau lewati untuk hanya validasi picking',
                 textAlign: TextAlign.center,
                 style: AppTextStyles.bodyMedium
                     .copyWith(color: AppColors.textSecondary),
               ),
               const SizedBox(height: 12),
               AppButton(
-                label: 'Lewati (hanya validasi receipt)',
+                label: 'Lewati (hanya validasi picking)',
                 onPressed: () => context
-                    .read<ReceiptTransferBloc>()
-                    .add(ReceiptTransferSkipLocation()),
+                    .read<ValidasiPickingBloc>()
+                    .add(ValidasiPickingSkipLocation()),
                 isOutlined: true,
               ),
             ],
@@ -1344,8 +1273,9 @@ class _ScanLocationView extends StatelessWidget {
 // ─── Step 4: Konfirmasi ──────────────────────────────────────────────────────
 
 class _ConfirmView extends StatelessWidget {
-  final ReceiptTransferState state;
-  const _ConfirmView({required this.state});
+  final ValidasiPickingState state;
+  final bool isAdmin;
+  const _ConfirmView({required this.state, required this.isAdmin});
 
   @override
   Widget build(BuildContext context) {
@@ -1358,19 +1288,19 @@ class _ConfirmView extends StatelessWidget {
           const SizedBox(height: 24),
           AppButton(
             label: state.hasTargetLocation
-                ? 'Validasi Receipt & Buat Transfer'
-                : 'Validasi Receipt',
+                ? 'Validasi Picking & Buat Transfer'
+                : 'Validasi Picking',
             icon: Icons.check_circle_outline,
             onPressed: () => context
-                .read<ReceiptTransferBloc>()
-                .add(ReceiptTransferConfirmed()),
+                .read<ValidasiPickingBloc>()
+                .add(ValidasiPickingConfirmed()),
           ),
           const SizedBox(height: 12),
           AppButton(
             label: 'Batal',
             onPressed: () => context
-                .read<ReceiptTransferBloc>()
-                .add(ReceiptTransferReset()),
+                .read<ValidasiPickingBloc>()
+                .add(ValidasiPickingReset()),
             isOutlined: true,
           ),
         ],
@@ -1380,7 +1310,7 @@ class _ConfirmView extends StatelessWidget {
 }
 
 class _SummaryCard extends StatelessWidget {
-  final ReceiptTransferState state;
+  final ValidasiPickingState state;
   const _SummaryCard({required this.state});
 
   @override
@@ -1389,7 +1319,6 @@ class _SummaryCard extends StatelessWidget {
     final hasPerProductLoc = state.allMovesHaveLocation;
     final hasGlobalLoc = state.locationCode != null;
     final uniqueInternal = state.uniqueDestLocationCount;
-    // Total: 1 receipt + internal transfer per lokasi unik (atau 1 kalau global)
     final totalTx = 1 +
         (hasPerProductLoc
             ? uniqueInternal
@@ -1411,14 +1340,13 @@ class _SummaryCard extends StatelessWidget {
           const Divider(height: 24),
           _InfoRow(
             icon: Icons.receipt_long_outlined,
-            label: 'Receipt',
+            label: 'Picking',
             value: state.pickingName ?? '-',
             color: AppColors.primary,
           ),
           const SizedBox(height: 12),
-          if (hasPerProductLoc) ...[  
-            // Per-product destination rows
-            for (final line in lines) ...[  
+          if (hasPerProductLoc) ...[
+            for (final line in lines) ...[
               _InfoRow(
                 icon: Icons.inventory_2_outlined,
                 label: line.productName,
@@ -1436,7 +1364,7 @@ class _SummaryCard extends StatelessWidget {
                   .toList(),
               uniqueInternal: uniqueInternal,
             ),
-          ] else if (hasGlobalLoc) ...[  
+          ] else if (hasGlobalLoc) ...[
             _InfoRow(
               icon: Icons.location_on_outlined,
               label: 'Lokasi Tujuan',
@@ -1449,7 +1377,29 @@ class _SummaryCard extends StatelessWidget {
               perProductLocs: [],
               uniqueInternal: 1,
             ),
-          ] else ...[  
+          ] else ...[
+            // No location selected — show default info from picking
+            if (state.pickingInfo?.pickingTypeName != null &&
+                state.pickingInfo!.pickingTypeName!.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: _InfoRow(
+                  icon: Icons.swap_horiz_outlined,
+                  label: 'Tipe Operasi',
+                  value: state.pickingInfo!.pickingTypeName!,
+                  color: AppColors.warning,
+                ),
+              ),
+            if (state.pickingInfo?.locationDestName.isNotEmpty == true)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: _InfoRow(
+                  icon: Icons.location_on_outlined,
+                  label: 'Lokasi Tujuan Default',
+                  value: state.pickingInfo!.locationDestName,
+                  color: AppColors.textSecondary,
+                ),
+              ),
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
@@ -1462,7 +1412,7 @@ class _SummaryCard extends StatelessWidget {
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      'Hanya validasi receipt\n(tanpa pemindahan ke lokasi tertentu)',
+                      'Hanya validasi picking\n(tanpa pemindahan ke lokasi tertentu)',
                       style: AppTextStyles.bodySmall.copyWith(color: AppColors.warning),
                     ),
                   ),
@@ -1491,7 +1441,7 @@ class _TransactionInfoBox extends StatelessWidget {
   Widget build(BuildContext context) {
     final uniqueLocs = perProductLocs.toSet().toList();
     final lines = <String>['Akan dibuat $totalTx transaksi:'];
-    lines.add('1. Validasi receipt dari vendor');
+    lines.add('1. Validasi picking');
     if (uniqueInternal == 1) {
       lines.add('2. Internal transfer ke lokasi tujuan');
     } else {
@@ -1569,15 +1519,14 @@ class _InfoRow extends StatelessWidget {
 // ─── Step 5: Hasil ───────────────────────────────────────────────────────────
 
 class _ResultView extends StatelessWidget {
-  final ReceiptTransferState state;
+  final ValidasiPickingState state;
   const _ResultView({required this.state});
 
   @override
   Widget build(BuildContext context) {
     final result = state.result;
     final isPartial = result?.status == 'partial';
-    final headerColor =
-        isPartial ? AppColors.warning : AppColors.success;
+    final headerColor = isPartial ? AppColors.warning : AppColors.success;
     final headerIcon = isPartial
         ? Icons.warning_amber_rounded
         : Icons.check_circle_rounded;
@@ -1626,8 +1575,8 @@ class _ResultView extends StatelessWidget {
             label: 'Proses Berikutnya',
             icon: Icons.refresh,
             onPressed: () => context
-                .read<ReceiptTransferBloc>()
-                .add(ReceiptTransferReset()),
+                .read<ValidasiPickingBloc>()
+                .add(ValidasiPickingReset()),
           ),
         ],
       ),
@@ -1654,7 +1603,7 @@ class _ResultDetailCard extends StatelessWidget {
           Text('Detail Transaksi', style: AppTextStyles.titleMedium),
           const Divider(height: 20),
           _ResultRow(
-            label: 'Receipt',
+            label: 'Picking',
             value: result.receiptName,
             icon: Icons.receipt_long_outlined,
             status: result.receiptDone,
@@ -1711,8 +1660,7 @@ class _ResultRow extends StatelessWidget {
           ),
         ),
         Container(
-          padding:
-              const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
           decoration: BoxDecoration(
             color: status
                 ? AppColors.success.withOpacity(0.15)

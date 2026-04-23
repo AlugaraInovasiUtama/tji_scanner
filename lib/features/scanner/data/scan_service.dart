@@ -216,6 +216,8 @@ class PickingInfo {
   final String name;
   final String? origin;
   final String pickingType;
+  /// Display name of the operation type (e.g. "Receipts", "WH: Receipts")
+  final String? pickingTypeName;
   final int? partnerId;
   final String? partnerName;
   final int locationId;
@@ -232,6 +234,7 @@ class PickingInfo {
     required this.name,
     this.origin,
     required this.pickingType,
+    this.pickingTypeName,
     this.partnerId,
     this.partnerName,
     required this.locationId,
@@ -251,6 +254,7 @@ class PickingInfo {
       name: json['name'] as String,
       origin: json['origin'] as String?,
       pickingType: json['picking_type'] as String,
+      pickingTypeName: json['picking_type_name'] as String?,
       partnerId: json['partner_id'] as int?,
       partnerName: json['partner_name'] as String?,
       locationId: json['location_id'] as int,
@@ -467,6 +471,143 @@ class MoveLotData {
         destLocationCode: clearDestLocation ? null : (destLocationCode ?? this.destLocationCode),
         destLocationName: clearDestLocation ? null : (destLocationName ?? this.destLocationName),
       );
+}
+
+// ─── Create Transfer models ───────────────────────────────────────────────────
+
+class PartnerInfo {
+  final int id;
+  final String name;
+  final String displayName;
+  final String companyName;
+  final String email;
+  final String phone;
+
+  const PartnerInfo({
+    required this.id,
+    required this.name,
+    required this.displayName,
+    required this.companyName,
+    required this.email,
+    required this.phone,
+  });
+
+  factory PartnerInfo.fromJson(Map<String, dynamic> json) => PartnerInfo(
+    id: json['id'] as int,
+    name: json['name'] as String? ?? '',
+    displayName: json['display_name'] as String? ?? '',
+    companyName: json['company_name'] as String? ?? '',
+    email: json['email'] as String? ?? '',
+    phone: json['phone'] as String? ?? '',
+  );
+}
+
+class PickingTypeInfo {
+  final int id;
+  final String name;
+  final String code;
+  final String warehouseName;
+  final int? defaultLocationSrcId;
+  final String defaultLocationSrcName;
+  final int? defaultLocationDestId;
+  final String defaultLocationDestName;
+
+  const PickingTypeInfo({
+    required this.id,
+    required this.name,
+    required this.code,
+    required this.warehouseName,
+    this.defaultLocationSrcId,
+    required this.defaultLocationSrcName,
+    this.defaultLocationDestId,
+    required this.defaultLocationDestName,
+  });
+
+  factory PickingTypeInfo.fromJson(Map<String, dynamic> json) => PickingTypeInfo(
+    id: json['id'] as int,
+    name: json['name'] as String? ?? '',
+    code: json['code'] as String? ?? '',
+    warehouseName: json['warehouse_name'] as String? ?? '',
+    defaultLocationSrcId: json['default_location_src_id'] == false ? null : json['default_location_src_id'] as int?,
+    defaultLocationSrcName: json['default_location_src_name'] as String? ?? '',
+    defaultLocationDestId: json['default_location_dest_id'] == false ? null : json['default_location_dest_id'] as int?,
+    defaultLocationDestName: json['default_location_dest_name'] as String? ?? '',
+  );
+
+  String get displayName => warehouseName.isNotEmpty ? '$name ($warehouseName)' : name;
+}
+
+class ProductSearchResult {
+  final int id;
+  final String name;
+  final String defaultCode;
+  final String tracking;
+  final String uom;
+
+  const ProductSearchResult({
+    required this.id,
+    required this.name,
+    required this.defaultCode,
+    required this.tracking,
+    required this.uom,
+  });
+
+  factory ProductSearchResult.fromJson(Map<String, dynamic> json) => ProductSearchResult(
+    id: json['id'] as int,
+    name: json['name'] as String? ?? '',
+    defaultCode: json['default_code'] as String? ?? '',
+    tracking: json['tracking'] as String? ?? 'none',
+    uom: json['uom'] as String? ?? '',
+  );
+
+  String get displayName => defaultCode.isNotEmpty ? '[$defaultCode] $name' : name;
+}
+
+class TransferMoveLine {
+  final int productId;
+  final double qty;
+  final String tracking;
+  final List<LotEntry> lots;
+
+  const TransferMoveLine({
+    required this.productId,
+    required this.qty,
+    required this.tracking,
+    this.lots = const [],
+  });
+
+  Map<String, dynamic> toJson() => {
+    'product_id': productId,
+    'qty': qty,
+    'tracking': tracking,
+    if (lots.isNotEmpty) 'lots': lots.map((l) => l.toJson()).toList(),
+  };
+}
+
+class CreateTransferResult {
+  final String status;
+  final int? pickingId;
+  final String pickingName;
+  final String message;
+  final String? error;
+
+  const CreateTransferResult({
+    required this.status,
+    this.pickingId,
+    required this.pickingName,
+    required this.message,
+    this.error,
+  });
+
+  bool get isSuccess => status == 'ok' || status == 'draft';
+
+  factory CreateTransferResult.fromJson(Map<String, dynamic> json) => CreateTransferResult(
+    status: json['status'] as String? ?? 'error',
+    pickingId: json['picking_id'] as int?,
+    pickingName: json['picking_name'] as String? ?? '',
+    message: json['message'] as String? ?? '',
+    error: json['error'] as String?,
+  );
 }
 
 class ScanService {
@@ -692,6 +833,113 @@ class ScanService {
       if (result.containsKey('error')) throw ServerException(result['error'] as String);
       final raw = result['created'] as List<dynamic>? ?? [];
       return raw.map((e) => CreatedLot.fromJson(Map<String, dynamic>.from(e as Map))).toList();
+    } on DioException catch (e) {
+      throw NetworkException(e.message ?? 'Gagal terhubung ke server');
+    }
+  }
+
+  // ─── Partner search ──────────────────────────────────────────────────────
+
+  Future<List<PartnerInfo>> searchPartners({String query = ''}) async {
+    try {
+      final response = await _dio.post(
+        ApiConstants.partnerSearchPath,
+        data: {
+          'jsonrpc': '2.0',
+          'method': 'call',
+          'params': {'query': query, 'limit': 50},
+        },
+      );
+      final data = response.data as Map<String, dynamic>;
+      final result = data['result'] as Map<String, dynamic>?;
+      if (result == null) throw const ServerException('Respon tidak valid dari server');
+      if (result.containsKey('error')) throw ServerException(result['error'] as String);
+      final raw = result['partners'] as List<dynamic>? ?? [];
+      return raw.map((e) => PartnerInfo.fromJson(Map<String, dynamic>.from(e as Map))).toList();
+    } on DioException catch (e) {
+      throw NetworkException(e.message ?? 'Gagal terhubung ke server');
+    }
+  }
+
+  // ─── Picking types ───────────────────────────────────────────────────────
+
+  Future<List<PickingTypeInfo>> getPickingTypes({String? code}) async {
+    try {
+      final response = await _dio.post(
+        ApiConstants.pickingTypeListPath,
+        data: {
+          'jsonrpc': '2.0',
+          'method': 'call',
+          'params': {if (code != null) 'code': code},
+        },
+      );
+      final data = response.data as Map<String, dynamic>;
+      final result = data['result'] as Map<String, dynamic>?;
+      if (result == null) throw const ServerException('Respon tidak valid dari server');
+      if (result.containsKey('error')) throw ServerException(result['error'] as String);
+      final raw = result['picking_types'] as List<dynamic>? ?? [];
+      return raw.map((e) => PickingTypeInfo.fromJson(Map<String, dynamic>.from(e as Map))).toList();
+    } on DioException catch (e) {
+      throw NetworkException(e.message ?? 'Gagal terhubung ke server');
+    }
+  }
+
+  // ─── Product search ──────────────────────────────────────────────────────
+
+  Future<List<ProductSearchResult>> searchProducts({String query = ''}) async {
+    try {
+      final response = await _dio.post(
+        ApiConstants.productSearchPath,
+        data: {
+          'jsonrpc': '2.0',
+          'method': 'call',
+          'params': {'query': query, 'limit': 50},
+        },
+      );
+      final data = response.data as Map<String, dynamic>;
+      final result = data['result'] as Map<String, dynamic>?;
+      if (result == null) throw const ServerException('Respon tidak valid dari server');
+      if (result.containsKey('error')) throw ServerException(result['error'] as String);
+      final raw = result['products'] as List<dynamic>? ?? [];
+      return raw.map((e) => ProductSearchResult.fromJson(Map<String, dynamic>.from(e as Map))).toList();
+    } on DioException catch (e) {
+      throw NetworkException(e.message ?? 'Gagal terhubung ke server');
+    }
+  }
+
+  // ─── Create Transfer ─────────────────────────────────────────────────────
+
+  Future<CreateTransferResult> createTransfer({
+    required int pickingTypeId,
+    required String locationSrc,
+    required String locationDest,
+    int? partnerId,
+    required List<TransferMoveLine> moveLines,
+    bool validate = true,
+  }) async {
+    try {
+      final params = <String, dynamic>{
+        'picking_type_id': pickingTypeId,
+        'location_src': locationSrc,
+        'location_dest': locationDest,
+        'move_lines': moveLines.map((m) => m.toJson()).toList(),
+        'validate': validate,
+      };
+      if (partnerId != null) params['partner_id'] = partnerId;
+
+      final response = await _dio.post(
+        ApiConstants.transferCreatePath,
+        data: {
+          'jsonrpc': '2.0',
+          'method': 'call',
+          'params': params,
+        },
+      );
+      final data = response.data as Map<String, dynamic>;
+      final result = data['result'] as Map<String, dynamic>?;
+      if (result == null) throw const ServerException('Respon tidak valid dari server');
+      if (result.containsKey('error')) throw ServerException(result['error'] as String);
+      return CreateTransferResult.fromJson(result);
     } on DioException catch (e) {
       throw NetworkException(e.message ?? 'Gagal terhubung ke server');
     }

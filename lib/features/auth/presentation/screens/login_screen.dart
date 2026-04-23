@@ -8,6 +8,7 @@ import '../../../../shared/theme/app_text_styles.dart';
 import '../../../../shared/widgets/app_button.dart';
 import '../../../../shared/widgets/app_text_field.dart';
 import '../../../../core/constants/api_constants.dart';
+import '../../../../core/storage/secure_storage.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -23,6 +24,32 @@ class _LoginScreenState extends State<LoginScreen> {
   );
   final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
+
+  final _secureStorage = SecureStorage();
+  List<String> _savedUrls = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSavedUrls();
+  }
+
+  Future<void> _loadSavedUrls() async {
+    final urls = await _secureStorage.getUrlList();
+    if (mounted) setState(() => _savedUrls = urls);
+  }
+
+  Future<void> _saveCurrentUrl() async {
+    final url = _serverController.text.trim();
+    if (url.isEmpty) return;
+    await _secureStorage.addUrlToList(url);
+    await _loadSavedUrls();
+  }
+
+  Future<void> _removeUrl(String url) async {
+    await _secureStorage.removeUrlFromList(url);
+    await _loadSavedUrls();
+  }
 
   @override
   void dispose() {
@@ -93,6 +120,78 @@ class _LoginScreenState extends State<LoginScreen> {
                     style: AppTextStyles.bodyMedium,
                   ),
                   const SizedBox(height: 40),
+
+                  // Server URL
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: AppTextField(
+                          label: 'Server URL',
+                          hint: 'https://odoo.example.com',
+                          controller: _serverController,
+                          prefixIcon: Icons.dns_outlined,
+                          keyboardType: TextInputType.url,
+                          validator: (v) {
+                            if (v == null || v.trim().isEmpty) {
+                              return 'URL server tidak boleh kosong';
+                            }
+                            if (!v.trim().startsWith('http')) {
+                              return 'URL harus dimulai dengan http:// atau https://';
+                            }
+                            return null;
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Padding(
+                        padding: const EdgeInsets.only(top: 24),
+                        child: IconButton.filled(
+                          tooltip: 'Simpan URL ini',
+                          onPressed: _saveCurrentUrl,
+                          icon: const Icon(Icons.bookmark_add_outlined),
+                          style: IconButton.styleFrom(
+                            backgroundColor: AppColors.primary,
+                            foregroundColor: Colors.black,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  // Saved URL chips
+                  if (_savedUrls.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 4,
+                      children: _savedUrls.map((url) {
+                        final isActive = _serverController.text.trim() == url;
+                        return InputChip(
+                          label: Text(
+                            url.replaceFirst(RegExp(r'^https?://'), ''),
+                            style: AppTextStyles.labelSmall.copyWith(
+                              color: isActive ? Colors.black : AppColors.textPrimary,
+                            ),
+                          ),
+                          selected: isActive,
+                          selectedColor: AppColors.primary,
+                          backgroundColor: AppColors.surface,
+                          side: BorderSide(
+                            color: isActive
+                                ? AppColors.primary
+                                : AppColors.textHint.withOpacity(0.3),
+                          ),
+                          onPressed: () =>
+                              setState(() => _serverController.text = url),
+                          onDeleted: () => _removeUrl(url),
+                          deleteIcon: const Icon(Icons.close, size: 14),
+                          visualDensity: VisualDensity.compact,
+                        );
+                      }).toList(),
+                    ),
+                  ],
+                  const SizedBox(height: 16),
 
                   // Username
                   AppTextField(

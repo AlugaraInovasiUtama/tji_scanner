@@ -7,7 +7,8 @@ import '../../features/scanner/presentation/location_info_screen.dart';
 import '../../features/scanner/presentation/pallet_info_screen.dart';
 import '../../features/scanner/presentation/picking_info_screen.dart';
 import '../../features/scanner/data/scan_service.dart';
-import '../../features/receipt_transfer/presentation/screens/receipt_transfer_screen.dart';
+import '../../features/validasi_picking/presentation/screens/validasi_picking_screen.dart';
+import '../../features/create_transfer/presentation/screens/create_transfer_screen.dart';
 import '../../features/settings/presentation/screens/settings_screen.dart';
 import 'di/injection.dart';
 
@@ -41,8 +42,14 @@ class AppRouter {
           settings,
         );
       case '/receipt-transfer':
+      case '/validasi-picking':
         return _buildRoute(
-          ReceiptTransferScreen(scanService: sl<ScanService>()),
+          ValidasiPickingScreen(scanService: sl<ScanService>()),
+          settings,
+        );
+      case '/create-transfer':
+        return _buildRoute(
+          CreateTransferScreen(scanService: sl<ScanService>()),
           settings,
         );
       case '/settings':

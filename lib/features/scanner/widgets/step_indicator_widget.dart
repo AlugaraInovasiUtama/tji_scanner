@@ -6,16 +6,112 @@ class StepIndicatorWidget extends StatelessWidget {
   final int currentStep;
   final int totalSteps;
   final List<String> stepLabels;
+  /// When set, splits steps into rows of this size.
+  final int? stepsPerRow;
 
   const StepIndicatorWidget({
     super.key,
     required this.currentStep,
     required this.totalSteps,
     required this.stepLabels,
+    this.stepsPerRow,
   });
+
+  Widget _buildStepRow(List<int> indices) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: indices.map((index) {
+        final stepIndex = index + 1;
+        final isDone = stepIndex < currentStep;
+        final isCurrent = stepIndex == currentStep;
+        final isLastInRow = index == indices.last;
+
+        return Expanded(
+          child: Column(
+            children: [
+              Row(
+                children: [
+                  if (index != indices.first)
+                    Expanded(
+                      child: Container(
+                        height: 2,
+                        color: isDone ? AppColors.primary : AppColors.divider,
+                      ),
+                    ),
+                  AnimatedContainer(
+                    duration: const Duration(milliseconds: 300),
+                    width: isCurrent ? 28 : 24,
+                    height: isCurrent ? 28 : 24,
+                    decoration: BoxDecoration(
+                      color: isDone
+                          ? AppColors.primary
+                          : isCurrent
+                              ? AppColors.primary.withOpacity(0.2)
+                              : AppColors.divider,
+                      shape: BoxShape.circle,
+                      border: isCurrent
+                          ? Border.all(color: AppColors.primary, width: 2)
+                          : null,
+                    ),
+                    child: Center(
+                      child: isDone
+                          ? const Icon(Icons.check, color: Colors.black, size: 14)
+                          : Text(
+                              '$stepIndex',
+                              style: TextStyle(
+                                color: isCurrent
+                                    ? AppColors.primary
+                                    : AppColors.textHint,
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                    ),
+                  ),
+                  if (!isLastInRow)
+                    Expanded(
+                      child: Container(
+                        height: 2,
+                        color: stepIndex < currentStep
+                            ? AppColors.primary
+                            : AppColors.divider,
+                      ),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              Text(
+                stepLabels[index],
+                textAlign: TextAlign.center,
+                style: AppTextStyles.labelSmall.copyWith(
+                  color: isCurrent
+                      ? AppColors.primary
+                      : isDone
+                          ? AppColors.textSecondary
+                          : AppColors.textHint,
+                  fontWeight: isCurrent ? FontWeight.w600 : FontWeight.w400,
+                ),
+              ),
+            ],
+          ),
+        );
+      }).toList(),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
+    final chunkSize = stepsPerRow ?? totalSteps;
+    final chunks = <List<int>>[];
+    for (var i = 0; i < totalSteps; i += chunkSize) {
+      chunks.add(
+        List.generate(
+          (i + chunkSize <= totalSteps) ? chunkSize : totalSteps - i,
+          (j) => i + j,
+        ),
+      );
+    }
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Column(
@@ -32,95 +128,13 @@ class StepIndicatorWidget extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 12),
-          // Step dots
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: List.generate(totalSteps, (index) {
-              final stepIndex = index + 1;
-              final isDone = stepIndex < currentStep;
-              final isCurrent = stepIndex == currentStep;
-
-              return Expanded(
-                child: Column(
-                  children: [
-                    Row(
-                      children: [
-                        if (index > 0)
-                          Expanded(
-                            child: Container(
-                              height: 2,
-                              color: isDone
-                                  ? AppColors.primary
-                                  : AppColors.divider,
-                            ),
-                          ),
-                        AnimatedContainer(
-                          duration: const Duration(milliseconds: 300),
-                          width: isCurrent ? 28 : 24,
-                          height: isCurrent ? 28 : 24,
-                          decoration: BoxDecoration(
-                            color: isDone
-                                ? AppColors.primary
-                                : isCurrent
-                                    ? AppColors.primary.withOpacity(0.2)
-                                    : AppColors.divider,
-                            shape: BoxShape.circle,
-                            border: isCurrent
-                                ? Border.all(
-                                    color: AppColors.primary,
-                                    width: 2,
-                                  )
-                                : null,
-                          ),
-                          child: Center(
-                            child: isDone
-                                ? const Icon(
-                                    Icons.check,
-                                    color: Colors.black,
-                                    size: 14,
-                                  )
-                                : Text(
-                                    '$stepIndex',
-                                    style: TextStyle(
-                                      color: isCurrent
-                                          ? AppColors.primary
-                                          : AppColors.textHint,
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                          ),
-                        ),
-                        if (index < totalSteps - 1)
-                          Expanded(
-                            child: Container(
-                              height: 2,
-                              color: stepIndex < currentStep
-                                  ? AppColors.primary
-                                  : AppColors.divider,
-                            ),
-                          ),
-                      ],
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      stepLabels[index],
-                      textAlign: TextAlign.center,
-                      style: AppTextStyles.labelSmall.copyWith(
-                        color: isCurrent
-                            ? AppColors.primary
-                            : isDone
-                                ? AppColors.textSecondary
-                                : AppColors.textHint,
-                        fontWeight:
-                            isCurrent ? FontWeight.w600 : FontWeight.w400,
-                      ),
-                    ),
-                  ],
-                ),
-              );
-            }),
-          ),
+          // Step rows
+          ...List.generate(chunks.length, (i) {
+            if (i < chunks.length - 1) {
+              return [_buildStepRow(chunks[i]), const SizedBox(height: 10)];
+            }
+            return [_buildStepRow(chunks[i])];
+          }).expand((e) => e),
         ],
       ),
     );
