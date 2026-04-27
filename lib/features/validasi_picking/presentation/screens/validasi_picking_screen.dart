@@ -1272,10 +1272,46 @@ class _ScanLocationView extends StatelessWidget {
 
 // ─── Step 4: Konfirmasi ──────────────────────────────────────────────────────
 
-class _ConfirmView extends StatelessWidget {
+class _ConfirmView extends StatefulWidget {
   final ValidasiPickingState state;
   final bool isAdmin;
   const _ConfirmView({required this.state, required this.isAdmin});
+
+  @override
+  State<_ConfirmView> createState() => _ConfirmViewState();
+}
+
+class _ConfirmViewState extends State<_ConfirmView> {
+  bool _packing = false;
+
+  Future<void> _putInPack(BuildContext context) async {
+    final pickingId = widget.state.pickingId;
+    if (pickingId == null) return;
+    setState(() => _packing = true);
+    try {
+      final bloc = context.read<ValidasiPickingBloc>();
+      final result = await bloc.putInPack(pickingId);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('✅ ${result.message} — Paket: ${result.packageName}'),
+          backgroundColor: AppColors.success,
+          duration: const Duration(seconds: 4),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.toString().replaceFirst('Exception: ', '')),
+          backgroundColor: AppColors.error,
+          duration: const Duration(seconds: 4),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _packing = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1284,10 +1320,28 @@ class _ConfirmView extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _SummaryCard(state: state),
-          const SizedBox(height: 24),
+          _SummaryCard(state: widget.state),
+          const SizedBox(height: 16),
+          // Put in Pack button — available before validation
+          OutlinedButton.icon(
+            icon: _packing
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.inventory_2_outlined),
+            label: Text(_packing ? 'Membuat paket...' : 'Put in Pack'),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: AppColors.info,
+              side: const BorderSide(color: AppColors.info),
+              padding: const EdgeInsets.symmetric(vertical: 14),
+            ),
+            onPressed: _packing ? null : () => _putInPack(context),
+          ),
+          const SizedBox(height: 12),
           AppButton(
-            label: state.hasTargetLocation
+            label: widget.state.hasTargetLocation
                 ? 'Validasi Picking & Buat Transfer'
                 : 'Validasi Picking',
             icon: Icons.check_circle_outline,

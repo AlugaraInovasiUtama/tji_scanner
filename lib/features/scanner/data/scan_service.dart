@@ -375,6 +375,26 @@ class ReceiptTransferResult {
   }
 }
 
+// ─── Put in Pack result ────────────────────────────────────────────────────
+
+class PutInPackResult {
+  final int packageId;
+  final String packageName;
+  final String message;
+
+  const PutInPackResult({
+    required this.packageId,
+    required this.packageName,
+    required this.message,
+  });
+
+  factory PutInPackResult.fromJson(Map<String, dynamic> json) => PutInPackResult(
+        packageId: json['package_id'] as int? ?? 0,
+        packageName: json['package_name'] as String? ?? '',
+        message: json['message'] as String? ?? 'Pack berhasil dibuat',
+      );
+}
+
 // ─── Lot entry models ──────────────────────────────────────────────────────
 
 class LotEntry {
@@ -718,6 +738,26 @@ class ScanService {
       }
 
       return PickingInfo.fromJson(result);
+    } on DioException catch (e) {
+      throw NetworkException(e.message ?? 'Gagal terhubung ke server');
+    }
+  }
+
+  Future<PutInPackResult> putInPack({required int pickingId}) async {
+    try {
+      final response = await _dio.post(
+        ApiConstants.putInPackPath,
+        data: {
+          'jsonrpc': '2.0',
+          'method': 'call',
+          'params': {'picking_id': pickingId},
+        },
+      );
+      final data = response.data as Map<String, dynamic>;
+      final result = data['result'] as Map<String, dynamic>?;
+      if (result == null) throw const ServerException('Respon tidak valid dari server');
+      if (result.containsKey('error')) throw ServerException(result['error'] as String);
+      return PutInPackResult.fromJson(result);
     } on DioException catch (e) {
       throw NetworkException(e.message ?? 'Gagal terhubung ke server');
     }

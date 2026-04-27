@@ -72,3 +72,12 @@ class CreateTransferProductsConfirmed extends CreateTransferEvent {}
 
 // Final confirm
 class CreateTransferConfirmed extends CreateTransferEvent {}
+
+/// Stores the picking ID after a draft was created (for Put-in-Pack flow)
+class CreateTransferDraftSaved extends CreateTransferEvent {
+  final int pickingId;
+  final String pickingName;
+  CreateTransferDraftSaved(this.pickingId, this.pickingName);
+  @override
+  List<Object?> get props => [pickingId];
+}

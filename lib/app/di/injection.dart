@@ -27,8 +27,10 @@ Future<void> initDependencies() async {
   sl.registerLazySingleton(() => AuthInterceptor(sl<SecureStorage>()));
   sl.registerLazySingleton(() => ConnectivityInterceptor(sl<Connectivity>()));
 
+  // Read the last-used server URL so Dio starts pointing at the right server
+  final storedUrl = await SecureStorage().getBaseUrl() ?? ApiConstants.defaultBaseUrl;
   sl.registerLazySingleton<Dio>(() => DioClient.getInstance(
-    baseUrl: ApiConstants.defaultBaseUrl,
+    baseUrl: storedUrl,
     authInterceptor: sl<AuthInterceptor>(),
     connectivityInterceptor: sl<ConnectivityInterceptor>(),
   ));

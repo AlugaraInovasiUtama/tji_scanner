@@ -1,4 +1,5 @@
 import '../../../../core/storage/secure_storage.dart';
+import '../../../../core/network/dio_client.dart';
 import '../../domain/entities/user.dart';
 import '../../domain/repositories/auth_repository.dart';
 import '../datasources/auth_remote_datasource.dart';
@@ -17,6 +18,7 @@ class AuthRepositoryImpl implements AuthRepository {
     required String password,
   }) async {
     await _secureStorage.saveBaseUrl(baseUrl);
+    DioClient.updateBaseUrl(baseUrl); // keep Dio in sync with the chosen server
     final user = await _remoteDataSource.login(
       baseUrl: baseUrl,
       username: username,

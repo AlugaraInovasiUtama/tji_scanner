@@ -5,17 +5,21 @@ import 'interceptors/connectivity_interceptor.dart';
 
 class DioClient {
   static Dio? _dio;
+  static String? _currentBaseUrl;
 
   static Dio getInstance({
     required String baseUrl,
     required AuthInterceptor authInterceptor,
     required ConnectivityInterceptor connectivityInterceptor,
   }) {
-    _dio ??= _createDio(
-      baseUrl: baseUrl,
-      authInterceptor: authInterceptor,
-      connectivityInterceptor: connectivityInterceptor,
-    );
+    if (_dio == null || _currentBaseUrl != baseUrl) {
+      _dio = _createDio(
+        baseUrl: baseUrl,
+        authInterceptor: authInterceptor,
+        connectivityInterceptor: connectivityInterceptor,
+      );
+      _currentBaseUrl = baseUrl;
+    }
     return _dio!;
   }
 
@@ -52,6 +56,14 @@ class DioClient {
 
   static void reset() {
     _dio = null;
+    _currentBaseUrl = null;
+  }
+
+  /// Update the baseUrl of the existing Dio instance in-place.
+  /// Called after login when the user switches server URLs.
+  static void updateBaseUrl(String baseUrl) {
+    _currentBaseUrl = baseUrl;
+    _dio?.options.baseUrl = baseUrl;
   }
 }
 

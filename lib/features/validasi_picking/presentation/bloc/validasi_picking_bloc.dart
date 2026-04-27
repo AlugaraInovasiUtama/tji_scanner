@@ -20,7 +20,9 @@ class ValidasiPickingBloc extends Bloc<ValidasiPickingEvent, ValidasiPickingStat
     on<ValidasiPickingMoveLocationCleared>(_onMoveLocationCleared);
   }
 
-  // Expose helper methods to call ScanService from UI (search/generate lots)
+  // Expose helper methods to call ScanService from UI
+  Future<PutInPackResult> putInPack(int pickingId) => _scanService.putInPack(pickingId: pickingId);
+
   Future<List<LotChoice>> searchLots(int productId, String query) => _scanService.searchLots(productId: productId, query: query);
 
   Future<String> nextLotSequence() => _scanService.nextLotSequence();

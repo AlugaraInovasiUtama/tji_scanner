@@ -20,6 +20,7 @@ class CreateTransferBloc extends Bloc<CreateTransferEvent, CreateTransferState> 
     on<CreateTransferProductRemoved>(_onProductRemoved);
     on<CreateTransferProductsConfirmed>(_onProductsConfirmed);
     on<CreateTransferConfirmed>(_onConfirmed);
+    on<CreateTransferDraftSaved>(_onDraftSaved);
   }
 
   // Expose helper methods for UI
@@ -34,6 +35,23 @@ class CreateTransferBloc extends Bloc<CreateTransferEvent, CreateTransferState> 
 
   Future<LocationInfo> getLocationInfo(String code) =>
       _scanService.getLocationInfo(code);
+
+  Future<PutInPackResult> putInPack(int pickingId) =>
+      _scanService.putInPack(pickingId: pickingId);
+
+  /// Creates a draft transfer (validate=false) and returns the result.
+  /// Caller is responsible for dispatching [CreateTransferDraftSaved].
+  Future<CreateTransferResult> createDraftTransfer() {
+    if (!state.canConfirm) throw Exception('Data transfer belum lengkap');
+    return _scanService.createTransfer(
+      pickingTypeId: state.pickingType!.id,
+      locationSrc: state.srcLocationCode!,
+      locationDest: state.dstLocationCode!,
+      partnerId: state.partner?.id,
+      moveLines: state.lines.map((l) => l.toMoveLine()).toList(),
+      validate: false,
+    );
+  }
 
   Future<List<LotChoice>> searchLots(int productId, String query) =>
       _scanService.searchLots(productId: productId, query: query);
@@ -213,6 +231,16 @@ class CreateTransferBloc extends Bloc<CreateTransferEvent, CreateTransferState> 
     emit(state.copyWith(step: CreateTransferStep.confirming, clearError: true));
   }
 
+  void _onDraftSaved(
+    CreateTransferDraftSaved event,
+    Emitter<CreateTransferState> emit,
+  ) {
+    emit(state.copyWith(
+      createdPickingId: event.pickingId,
+      createdPickingName: event.pickingName,
+    ));
+  }
+
   Future<void> _onConfirmed(
     CreateTransferConfirmed event,
     Emitter<CreateTransferState> emit,
@@ -221,13 +249,31 @@ class CreateTransferBloc extends Bloc<CreateTransferEvent, CreateTransferState> 
 
     emit(state.copyWith(isLoading: true, clearError: true));
     try {
-      final result = await _scanService.createTransfer(
-        pickingTypeId: state.pickingType!.id,
-        locationSrc: state.srcLocationCode!,
-        locationDest: state.dstLocationCode!,
-        partnerId: state.partner?.id,
-        moveLines: state.lines.map((l) => l.toMoveLine()).toList(),
-      );
+      CreateTransferResult result;
+      if (state.createdPickingId != null) {
+        // Draft already created (Put-in-Pack flow) — just validate it
+        final validateResult = await _scanService.validateReceiptWithTransfer(
+          pickingId: state.createdPickingId!,
+          moveLines: const [],
+          targetLocationCode: null,
+        );
+        result = CreateTransferResult(
+          status: validateResult.receiptDone ? 'ok' : 'partial',
+          pickingId: state.createdPickingId,
+          pickingName: validateResult.receiptName.isNotEmpty
+              ? validateResult.receiptName
+              : (state.createdPickingName ?? ''),
+          message: validateResult.message,
+        );
+      } else {
+        result = await _scanService.createTransfer(
+          pickingTypeId: state.pickingType!.id,
+          locationSrc: state.srcLocationCode!,
+          locationDest: state.dstLocationCode!,
+          partnerId: state.partner?.id,
+          moveLines: state.lines.map((l) => l.toMoveLine()).toList(),
+        );
+      }
       emit(state.copyWith(
         isLoading: false,
         step: CreateTransferStep.done,

@@ -16,6 +16,7 @@ class ApiConstants {
   static const String palletInfoPath = '/api/pallet/info';
   static const String pickingInfoPath = '/api/picking/info';
   static const String receiptValidatePath = '/api/picking/validate_receipt_transfer';
+  static const String putInPackPath = '/api/picking/put_in_pack';
   static const String userRolePath = '/api/user/role';
 
   // Create Transfer endpoints

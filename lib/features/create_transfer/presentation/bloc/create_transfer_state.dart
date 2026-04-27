@@ -73,6 +73,10 @@ class CreateTransferState extends Equatable {
   // Result
   final CreateTransferResult? result;
 
+  // Draft picking created for Put-in-Pack flow
+  final int? createdPickingId;
+  final String? createdPickingName;
+
   const CreateTransferState({
     this.step = CreateTransferStep.selectPartner,
     this.partner,
@@ -86,6 +90,8 @@ class CreateTransferState extends Equatable {
     this.isLoading = false,
     this.errorMessage,
     this.result,
+    this.createdPickingId,
+    this.createdPickingName,
   });
 
   int get currentStepIndex {
@@ -126,6 +132,8 @@ class CreateTransferState extends Equatable {
     bool? isLoading,
     String? errorMessage,
     CreateTransferResult? result,
+    int? createdPickingId,
+    String? createdPickingName,
     bool clearError = false,
     bool clearPartner = false,
   }) {
@@ -142,6 +150,8 @@ class CreateTransferState extends Equatable {
       isLoading: isLoading ?? this.isLoading,
       errorMessage: clearError ? null : errorMessage,
       result: result ?? this.result,
+      createdPickingId: createdPickingId ?? this.createdPickingId,
+      createdPickingName: createdPickingName ?? this.createdPickingName,
     );
   }
 
@@ -159,5 +169,7 @@ class CreateTransferState extends Equatable {
         isLoading,
         errorMessage,
         result,
+        createdPickingId,
+        createdPickingName,
       ];
 }
