@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../../../shared/theme/app_colors.dart';
 import '../../../../shared/theme/app_text_styles.dart';
-import '../../../../shared/widgets/app_button.dart';
 import '../../../../core/utils/scan_feedback.dart';
+import '../../../../core/storage/secure_storage.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -14,6 +14,27 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   bool _vibrateEnabled = true;
   bool _beepEnabled = true;
+  String _activeServer = '-';
+  String _activeDb = '-';
+
+  final _secureStorage = SecureStorage();
+
+  @override
+  void initState() {
+    super.initState();
+    _loadConnectionInfo();
+  }
+
+  Future<void> _loadConnectionInfo() async {
+    final url = await _secureStorage.getBaseUrl();
+    final db = await _secureStorage.getDatabase();
+    if (mounted) {
+      setState(() {
+        _activeServer = url ?? '-';
+        _activeDb = db ?? '-';
+      });
+    }
+  }
 
   @override
   void dispose() {
@@ -65,9 +86,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
             icon: Icons.info_outline,
           ),
           _SettingsTile(
-            title: 'Database',
+            title: 'Database Lokal',
             subtitle: 'Drift SQLite (Local)',
             icon: Icons.storage_outlined,
+          ),
+          const SizedBox(height: 24),
+
+          _SectionTitle(title: 'Koneksi Odoo'),
+          _SettingsTile(
+            title: 'Server URL',
+            subtitle: _activeServer,
+            icon: Icons.dns_outlined,
+          ),
+          _SettingsTile(
+            title: 'Database Aktif',
+            subtitle: _activeDb,
+            icon: Icons.dataset_outlined,
           ),
         ],
       ),

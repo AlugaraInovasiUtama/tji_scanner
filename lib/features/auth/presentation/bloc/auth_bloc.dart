@@ -51,6 +51,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     try {
       final user = await _loginUseCase(
         baseUrl: event.baseUrl,
+        db: event.db,
         username: event.username,
         password: event.password,
       );

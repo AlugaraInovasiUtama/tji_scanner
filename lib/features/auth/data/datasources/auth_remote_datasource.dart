@@ -6,6 +6,7 @@ import '../models/user_model.dart';
 abstract class AuthRemoteDataSource {
   Future<UserModel> login({
     required String baseUrl,
+    required String db,
     required String username,
     required String password,
   });
@@ -23,6 +24,7 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
   @override
   Future<UserModel> login({
     required String baseUrl,
+    required String db,
     required String username,
     required String password,
   }) async {
@@ -33,8 +35,7 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
           'jsonrpc': '2.0',
           'method': 'call',
           'params': {
-            // 'db': 'Algr_Tji_16_Ce',
-            'db': 'tji_dev',
+            'db': db,
             'login': username,
             'password': password,
           },

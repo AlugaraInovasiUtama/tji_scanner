@@ -12,6 +12,8 @@ class SecureStorage {
   static const _keyUserRole = 'tji_user_role';
   static const _keyBaseUrl = 'tji_base_url';
   static const _keyUrlList = 'tji_url_list';
+  static const _keyDatabase = 'tji_database';
+  static const _keyDbList = 'tji_db_list';
 
   Future<void> saveSessionId(String sessionId) async {
     await _storage.write(key: _keySessionId, value: sessionId);
@@ -76,6 +78,38 @@ class SecureStorage {
     final list = await getUrlList();
     list.remove(url);
     await _storage.write(key: _keyUrlList, value: jsonEncode(list));
+  }
+
+  Future<void> saveDatabase(String db) async {
+    await _storage.write(key: _keyDatabase, value: db);
+  }
+
+  Future<String?> getDatabase() async {
+    return _storage.read(key: _keyDatabase);
+  }
+
+  Future<List<String>> getDbList() async {
+    final raw = await _storage.read(key: _keyDbList);
+    if (raw == null) return [];
+    try {
+      return List<String>.from(jsonDecode(raw) as List);
+    } catch (_) {
+      return [];
+    }
+  }
+
+  Future<void> addDbToList(String db) async {
+    final list = await getDbList();
+    if (!list.contains(db)) {
+      list.insert(0, db);
+    }
+    await _storage.write(key: _keyDbList, value: jsonEncode(list));
+  }
+
+  Future<void> removeDbFromList(String db) async {
+    final list = await getDbList();
+    list.remove(db);
+    await _storage.write(key: _keyDbList, value: jsonEncode(list));
   }
 
   Future<void> clearAll() async {

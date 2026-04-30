@@ -14,13 +14,16 @@ class AuthRepositoryImpl implements AuthRepository {
   @override
   Future<User> login({
     required String baseUrl,
+    required String db,
     required String username,
     required String password,
   }) async {
     await _secureStorage.saveBaseUrl(baseUrl);
+    await _secureStorage.saveDatabase(db);
     DioClient.updateBaseUrl(baseUrl); // keep Dio in sync with the chosen server
     final user = await _remoteDataSource.login(
       baseUrl: baseUrl,
+      db: db,
       username: username,
       password: password,
     );

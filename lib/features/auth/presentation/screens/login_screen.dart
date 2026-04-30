@@ -22,38 +22,67 @@ class _LoginScreenState extends State<LoginScreen> {
   final _serverController = TextEditingController(
     text: ApiConstants.defaultBaseUrl,
   );
+  final _dbController = TextEditingController();
   final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
 
   final _secureStorage = SecureStorage();
   List<String> _savedUrls = [];
+  List<String> _savedDbs = [];
 
   @override
   void initState() {
     super.initState();
-    _loadSavedUrls();
+    _loadSaved();
   }
 
-  Future<void> _loadSavedUrls() async {
+  Future<void> _loadSaved() async {
     final urls = await _secureStorage.getUrlList();
-    if (mounted) setState(() => _savedUrls = urls);
+    final dbs = await _secureStorage.getDbList();
+    final lastDb = await _secureStorage.getDatabase();
+    if (mounted) {
+      setState(() {
+        _savedUrls = urls;
+        _savedDbs = dbs;
+        if (_dbController.text.isEmpty && lastDb != null) {
+          _dbController.text = lastDb;
+        }
+      });
+    }
   }
 
   Future<void> _saveCurrentUrl() async {
     final url = _serverController.text.trim();
     if (url.isEmpty) return;
     await _secureStorage.addUrlToList(url);
-    await _loadSavedUrls();
+    final urls = await _secureStorage.getUrlList();
+    if (mounted) setState(() => _savedUrls = urls);
   }
 
   Future<void> _removeUrl(String url) async {
     await _secureStorage.removeUrlFromList(url);
-    await _loadSavedUrls();
+    final urls = await _secureStorage.getUrlList();
+    if (mounted) setState(() => _savedUrls = urls);
+  }
+
+  Future<void> _saveCurrentDb() async {
+    final db = _dbController.text.trim();
+    if (db.isEmpty) return;
+    await _secureStorage.addDbToList(db);
+    final dbs = await _secureStorage.getDbList();
+    if (mounted) setState(() => _savedDbs = dbs);
+  }
+
+  Future<void> _removeDb(String db) async {
+    await _secureStorage.removeDbFromList(db);
+    final dbs = await _secureStorage.getDbList();
+    if (mounted) setState(() => _savedDbs = dbs);
   }
 
   @override
   void dispose() {
     _serverController.dispose();
+    _dbController.dispose();
     _usernameController.dispose();
     _passwordController.dispose();
     super.dispose();
@@ -64,6 +93,7 @@ class _LoginScreenState extends State<LoginScreen> {
     context.read<AuthBloc>().add(
       AuthLoginRequested(
         baseUrl: _serverController.text.trim(),
+        db: _dbController.text.trim(),
         username: _usernameController.text.trim(),
         password: _passwordController.text,
       ),
@@ -185,6 +215,74 @@ class _LoginScreenState extends State<LoginScreen> {
                           onPressed: () =>
                               setState(() => _serverController.text = url),
                           onDeleted: () => _removeUrl(url),
+                          deleteIcon: const Icon(Icons.close, size: 14),
+                          visualDensity: VisualDensity.compact,
+                        );
+                      }).toList(),
+                    ),
+                  ],
+                  const SizedBox(height: 16),
+
+                  // DB name field
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: AppTextField(
+                          label: 'Database',
+                          hint: 'tji_dev',
+                          controller: _dbController,
+                          prefixIcon: Icons.storage_outlined,
+                          validator: (v) {
+                            if (v == null || v.trim().isEmpty) {
+                              return 'Database tidak boleh kosong';
+                            }
+                            return null;
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Padding(
+                        padding: const EdgeInsets.only(top: 24),
+                        child: IconButton.filled(
+                          tooltip: 'Simpan database ini',
+                          onPressed: _saveCurrentDb,
+                          icon: const Icon(Icons.bookmark_add_outlined),
+                          style: IconButton.styleFrom(
+                            backgroundColor: AppColors.primary,
+                            foregroundColor: Colors.black,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  // Saved DB chips
+                  if (_savedDbs.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 4,
+                      children: _savedDbs.map((db) {
+                        final isActive = _dbController.text.trim() == db;
+                        return InputChip(
+                          label: Text(
+                            db,
+                            style: AppTextStyles.labelSmall.copyWith(
+                              color: isActive ? Colors.black : AppColors.textPrimary,
+                            ),
+                          ),
+                          selected: isActive,
+                          selectedColor: AppColors.primary,
+                          backgroundColor: AppColors.surface,
+                          side: BorderSide(
+                            color: isActive
+                                ? AppColors.primary
+                                : AppColors.textHint.withOpacity(0.3),
+                          ),
+                          onPressed: () =>
+                              setState(() => _dbController.text = db),
+                          onDeleted: () => _removeDb(db),
                           deleteIcon: const Icon(Icons.close, size: 14),
                           visualDensity: VisualDensity.compact,
                         );

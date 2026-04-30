@@ -1532,6 +1532,107 @@ class _DoneView extends StatelessWidget {
   final CreateTransferState state;
   const _DoneView({required this.state});
 
+  void _showTransferSummary(BuildContext context, CreateTransferState s) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) {
+        return DraggableScrollableSheet(
+          expand: false,
+          initialChildSize: 0.6,
+          minChildSize: 0.4,
+          maxChildSize: 0.92,
+          builder: (_, scrollCtrl) {
+            return ListView(
+              controller: scrollCtrl,
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    margin: const EdgeInsets.only(bottom: 16),
+                    decoration: BoxDecoration(
+                      color: AppColors.divider,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                Row(
+                  children: [
+                    const Icon(Icons.receipt_long_outlined, color: AppColors.success),
+                    const SizedBox(width: 8),
+                    Text('Ringkasan Transfer', style: AppTextStyles.titleMedium),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                const Divider(),
+                _SummaryRow(icon: Icons.tag, label: 'No. Transfer', value: s.result?.pickingName ?? '-'),
+                if (s.partner != null)
+                  _SummaryRow(icon: Icons.person_outline, label: 'Kontak', value: s.partner!.displayName),
+                if (s.pickingType != null)
+                  _SummaryRow(icon: Icons.swap_horiz, label: 'Tipe Operasi', value: s.pickingType!.displayName),
+                if (s.srcLocationName != null)
+                  _SummaryRow(icon: Icons.location_on_outlined, label: 'Lokasi Asal', value: s.srcLocationName!),
+                if (s.dstLocationName != null)
+                  _SummaryRow(icon: Icons.location_searching, label: 'Lokasi Tujuan', value: s.dstLocationName!),
+                const Divider(height: 24),
+                Text('Produk (${s.lines.length})', style: AppTextStyles.titleMedium),
+                const SizedBox(height: 8),
+                ...s.lines.map((line) {
+                  final hasLots = line.lots.isNotEmpty;
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 8),
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: AppColors.background,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: AppColors.divider),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(line.product.displayName, style: AppTextStyles.bodyMedium),
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            Chip(
+                              label: Text('Qty: ${line.qty} ${line.product.uom}', style: const TextStyle(fontSize: 11)),
+                              backgroundColor: AppColors.primary.withOpacity(0.1),
+                              padding: EdgeInsets.zero,
+                              visualDensity: VisualDensity.compact,
+                            ),
+                          ],
+                        ),
+                        if (hasLots) ...[
+                          const SizedBox(height: 4),
+                          Wrap(
+                            spacing: 4,
+                            runSpacing: 4,
+                            children: line.lots.map((l) => Chip(
+                              label: Text(l.lotName, style: const TextStyle(fontSize: 10)),
+                              backgroundColor: AppColors.info.withOpacity(0.1),
+                              padding: EdgeInsets.zero,
+                              visualDensity: VisualDensity.compact,
+                            )).toList(),
+                          ),
+                        ],
+                      ],
+                    ),
+                  );
+                }),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final result = state.result;
@@ -1579,7 +1680,16 @@ class _DoneView extends StatelessWidget {
               ),
             ),
           ],
-          const SizedBox(height: 32),
+          const SizedBox(height: 24),
+          if (isSuccess) ...[
+            AppButton(
+              label: 'Lihat Ringkasan Transfer',
+              icon: Icons.receipt_long_outlined,
+              isOutlined: true,
+              onPressed: () => _showTransferSummary(context, state),
+            ),
+            const SizedBox(height: 12),
+          ],
           AppButton(
             label: 'Buat Transfer Baru',
             icon: Icons.add_circle_outline,
@@ -1592,6 +1702,34 @@ class _DoneView extends StatelessWidget {
             icon: Icons.home_outlined,
             isOutlined: true,
             onPressed: () => Navigator.of(context).pop(),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── Helper: summary row ──────────────────────────────────────────────────────
+
+class _SummaryRow extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+
+  const _SummaryRow({required this.icon, required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 16, color: AppColors.textSecondary),
+          const SizedBox(width: 8),
+          Text('$label: ', style: AppTextStyles.bodySmall.copyWith(color: AppColors.textSecondary)),
+          Expanded(
+            child: Text(value, style: AppTextStyles.bodySmall.copyWith(color: AppColors.textPrimary, fontWeight: FontWeight.w600)),
           ),
         ],
       ),
